@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     let lastY = window.scrollY;
@@ -55,6 +57,27 @@ export default function Header() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
+          {!loading && (
+            user ? (
+              <Link
+                href="/account"
+                className="hidden md:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition-all hover:border-white/20 hover:bg-white/10"
+                title={user.email || 'Il mio account'}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#a855f7] to-[#7c3aed] text-[10px] font-bold text-white">
+                  {(user.email || 'U')[0].toUpperCase()}
+                </span>
+                Account
+              </Link>
+            ) : (
+              <Link
+                href="/auth"
+                className="hidden md:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition-all hover:border-white/20 hover:bg-white/10"
+              >
+                Accedi
+              </Link>
+            )
+          )}
           <a
             href="https://chromewebstore.google.com"
             target="_blank"
@@ -127,6 +150,15 @@ export default function Header() {
             >
               FAQ
             </Link>
+            {!loading && (
+              <Link
+                href={user ? '/account' : '/auth'}
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-lg px-4 py-2.5 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                {user ? 'Il mio account' : 'Accedi / Registrati'}
+              </Link>
+            )}
             <a
               href="https://chromewebstore.google.com"
               target="_blank"

@@ -66,6 +66,7 @@ export default function Footer() {
             <ul className="space-y-3 text-sm text-zinc-400">
               <li><Link href="/guide" className="transition-colors hover:text-white">Guida all&apos;estensione</Link></li>
               <li><Link href="/#faq" className="transition-colors hover:text-white">FAQ</Link></li>
+              <li><Link href="/auth" className="transition-colors hover:text-white">Accedi / Registrati</Link></li>
               <li>
                 <a href="mailto:support@infolders.app" className="transition-colors hover:text-white">
                   Contatta il supporto
