@@ -84,7 +84,7 @@ export const PLANS: Plan[] = [
       { label: 'Profili Istruzioni condivisi', included: true },
       { label: 'Supporto prioritario dedicato', included: true },
     ],
-    ctaLabel: 'Contatta il team',
+    ctaLabel: 'Attiva Team',
     ctaHref: 'mailto:support@infolders.app',
     highlighted: false,
   },

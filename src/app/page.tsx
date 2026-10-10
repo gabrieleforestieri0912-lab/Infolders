@@ -6,6 +6,7 @@ import FaqAccordion from './FaqAccordion';
 import Footer from './Footer';
 import Header from './Header';
 import ChatMockup from './ChatMockup';
+import PricingCta from './PricingCta';
 import { PLATFORM_ICONS } from './PlatformIcons';
 
 
@@ -355,23 +356,13 @@ export default function Home() {
                   ))}
                 </ul>
 
-                <a
-                  href={plan.ctaHref}
-                  target={plan.ctaHref.startsWith('http') ? '_blank' : undefined}
-                  rel={plan.ctaHref.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className={`block w-full rounded-xl py-3 text-center text-sm font-bold transition-all ${plan.highlighted
-                    ? 'bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white hover:opacity-90 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)]'
-                    : 'border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:border-white/20'
-                    }`}
-                >
-                  {plan.ctaLabel}
-                </a>
+                <PricingCta plan={plan} />
               </div>
             ))}
           </div>
 
           <p className="mt-10 text-center text-xs text-zinc-600">
-            Pro e Team si acquistano dall&apos;estensione: installala, accedi con Google e scegli il piano dalla sidebar. Pagamento sicuro tramite Stripe.
+            Pro e Team si attivano da qui: accedi e paghi con Stripe in modo sicuro. Puoi farlo anche dall&apos;estensione, accedendo con Google e scegliendo il piano dalla sidebar.
           </p>
         </div>
       </section>

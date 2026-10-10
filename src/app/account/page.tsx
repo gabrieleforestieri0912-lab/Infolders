@@ -47,6 +47,19 @@ export default function AccountPage() {
   const [data, setData] = useState<UserData | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<'pro' | 'team' | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState('');
+
+  // Piano scelto prima del login (?plan=pro|team).
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get('plan');
+      if (p === 'pro' || p === 'team') setPendingPlan(p);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // Stessa tabella usata dall'estensione (user_data, chiave user_id).
   useEffect(() => {
@@ -74,6 +87,25 @@ export default function AccountPage() {
     setSigningOut(true);
     await signOut();
     setSigningOut(false);
+  };
+
+  const handlePay = async (planId: 'pro' | 'team') => {
+    if (!user?.email) return;
+    setPaying(true);
+    setPayError('');
+    try {
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId, userId: user.id, email: user.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Errore nella creazione del pagamento.');
+      window.location.href = data.url;
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : 'Errore nel pagamento. Riprova.');
+      setPaying(false);
+    }
   };
 
   const premium = data?.premiumData;
@@ -126,6 +158,35 @@ export default function AccountPage() {
                 {plan}
               </span>
             </div>
+
+            {/* Completa l'abbonamento scelto prima del login */}
+            {pendingPlan && plan === 'Free' && (
+              <div className="mb-6 rounded-2xl border border-[#a855f7]/30 bg-[#a855f7]/[0.06] p-6 text-center">
+                <p className="text-base font-bold">
+                  Completa l’abbonamento {pendingPlan === 'pro' ? 'Pro' : 'Team'}
+                </p>
+                <p className="mt-1 text-sm text-zinc-400">
+                  {pendingPlan === 'pro' ? '€9,99/mese' : '€29,99/mese'} · disdici quando vuoi · pagamento sicuro con Stripe
+                </p>
+                {payError && (
+                  <p className="mx-auto mt-3 max-w-md rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2 text-sm text-red-400">
+                    {payError}
+                  </p>
+                )}
+                <button
+                  onClick={() => handlePay(pendingPlan)}
+                  disabled={paying}
+                  className="mt-4 rounded-full bg-gradient-to-r from-[#a855f7] to-[#7c3aed] px-8 py-3 text-sm font-bold text-white transition-all hover:opacity-90 hover:shadow-[0_0_24px_rgba(168,85,247,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {paying ? 'Reindirizzamento a Stripe...' : `Paga ${pendingPlan === 'pro' ? '€9,99/mese' : '€29,99/mese'}`}
+                </button>
+              </div>
+            )}
+            {pendingPlan && plan !== 'Free' && (
+              <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-center text-sm text-emerald-300">
+                Hai già il piano {plan} attivo, nessun altro pagamento necessario.
+              </div>
+            )}
 
             {/* Statistiche dal database dell'estensione */}
             <div className="grid gap-3 sm:grid-cols-3">

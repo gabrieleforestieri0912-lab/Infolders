@@ -10,6 +10,23 @@ import { useAuth } from '@/lib/auth-context';
 
 type Mode = 'login' | 'signup';
 
+/** Destinazione post-login da ?next= (solo percorsi interni), con ?plan= conservato. */
+function buildPostAuthRedirect(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next') || '/account';
+    const plan = params.get('plan');
+    const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/account';
+    if (plan === 'pro' || plan === 'team') {
+      const sep = safeNext.includes('?') ? '&' : '?';
+      if (!safeNext.includes('plan=')) return `${safeNext}${sep}plan=${plan}`;
+    }
+    return safeNext;
+  } catch {
+    return '/account';
+  }
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const { user, loading, signIn, signUp } = useAuth();
@@ -19,9 +36,19 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [targetPlan, setTargetPlan] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/account');
+    try {
+      const p = new URLSearchParams(window.location.search).get('plan');
+      if (p === 'pro' || p === 'team') setTargetPlan(p);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && user) router.replace(buildPostAuthRedirect());
   }, [loading, user, router]);
 
   if (!loading && user) {
@@ -40,14 +67,14 @@ export default function AuthPage() {
     try {
       if (mode === 'login') {
         await signIn(email.trim(), password);
-        router.replace('/account');
+        router.replace(buildPostAuthRedirect());
       } else {
         const { needsConfirmation } = await signUp(email.trim(), password);
         if (needsConfirmation) {
           setInfo('Account creato! Controlla la tua email e clicca il link di conferma prima di accedere.');
           setMode('login');
         } else {
-          router.replace('/account');
+          router.replace(buildPostAuthRedirect());
         }
       }
     } catch (err) {
@@ -74,6 +101,11 @@ export default function AuthPage() {
               ? 'Accedi con email e password. Lo stesso account vale per sito ed estensione.'
               : 'Registrati con email e password. I tuoi dati si sincronizzano con l\u2019estensione.'}
           </p>
+          {targetPlan && (
+            <p className="mx-auto mt-4 inline-block rounded-full border border-[#a855f7]/30 bg-[#a855f7]/10 px-4 py-1.5 text-xs font-semibold text-[#c4b5fd]">
+              Stai attivando il piano {targetPlan === 'pro' ? 'Pro' : 'Team'} — dopo l’accesso continui al pagamento
+            </p>
+          )}
         </div>
 
         {/* Tabs */}
