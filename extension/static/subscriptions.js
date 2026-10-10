@@ -1,5 +1,5 @@
 (function() {
-  var DEFAULT_SITE_URL = "https://infolders.app";
+  var DEFAULT_SITE_URL = "https://infolders.vercel.app";
 
   function getApiBaseUrl() {
     return new Promise((resolve) => {
@@ -28,6 +28,69 @@
     closeBtn.addEventListener("click", () => window.close());
   }
 
+  function sendToBackground(message) {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve(response);
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function decodeIdToken(idToken) {
+    return JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  }
+
+  // Login con Google dal popup: salva currentUser + id_token.
+  // La sessione Supabase viene completata dal content script alla prossima
+  // pagina chatbot (chiave pending_google_id_token).
+  async function loginFromPopup() {
+    setStatus("Accesso con Google...", "info");
+    const response = await sendToBackground({ action: "loginWithGoogle" });
+    if (!response || response.error) {
+      throw new Error(response && response.error ? response.error : "Login fallito");
+    }
+    if (!response.token) throw new Error("Token non ricevuto");
+    const payload = decodeIdToken(response.token);
+    const user = {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      picture: payload.picture,
+      verified_email: payload.email_verified
+    };
+    await new Promise((resolve) => {
+      chrome.storage.local.set(
+        { currentUser: user, pending_google_id_token: response.token },
+        () => resolve()
+      );
+    });
+    return user;
+  }
+
+  async function startCheckout(plan, user) {
+    setStatus("Reindirizzamento a Stripe...", "info");
+    const baseUrl = await getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/create-checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan, userId: user.id, email: user.email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Errore nel pagamento");
+    }
+    chrome.tabs.create({ url: data.url });
+    setStatus("Pagamento avviato: apri la finestra di Stripe.", "success");
+  }
+
   document.querySelectorAll(".pricing-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const plan = btn.dataset.plan;
@@ -35,34 +98,14 @@
         setStatus("Sei già sul piano Free.", "info");
         return;
       }
-      if (plan === "team") {
-        chrome.tabs.create({
-          url: "mailto:support@infolders.app?subject=Richiesta%20piano%20Team%20InFolders"
-        });
-        setStatus("Apertura email di contatto...", "info");
-        return;
-      }
-      // Piano Pro: richiede l'accesso e avvia il checkout Stripe
+      // Pro e Team: se non hai fatto l'accesso, login e poi pagamento.
       chrome.storage.local.get(["currentUser"], async (result) => {
-        const user = result.currentUser;
-        if (!user || !user.id || !user.email) {
-          setStatus("Accedi prima di procedere al pagamento.", "warn");
-          return;
-        }
-        setStatus("Reindirizzamento a Stripe...", "info");
         try {
-          const baseUrl = await getApiBaseUrl();
-          const res = await fetch(`${baseUrl}/api/create-checkout`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plan, userId: user.id, email: user.email })
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || "Errore nel pagamento");
+          let user = result.currentUser;
+          if (!user || !user.id || !user.email) {
+            user = await loginFromPopup();
           }
-          chrome.tabs.create({ url: data.url });
-          setStatus("Pagamento avviato: apri la finestra di Stripe.", "success");
+          await startCheckout(plan, user);
         } catch (err) {
           setStatus(err.message || "Errore nel pagamento. Riprova più tardi.", "error");
         }

@@ -21639,7 +21639,7 @@ ${suffix}`;
   }
 
   // src/extension/lib/api.ts
-  var DEFAULT_SITE_URL = "https://infolders.app";
+  var DEFAULT_SITE_URL = "https://infolders.vercel.app";
   async function getApiBaseUrl() {
     try {
       const stored = await chrome.storage.local.get(["infolders_site_url"]);
@@ -22007,9 +22007,14 @@ ${suffix}`;
   }
   async function startStripeCheckout(plan) {
     if (!currentUser) {
-      showToast("Accedi prima di procedere al pagamento.", "warning");
-      return;
+      showToast("Accedi con Google per continuare al pagamento...", "info", 3e3);
+      try {
+        await loginWithGoogleAsync();
+      } catch (err) {
+        return;
+      }
     }
+    if (!currentUser) return;
     try {
       showToast("Reindirizzamento a Stripe...", "info", 3e3);
       const checkoutUrl = await createCheckoutSession(plan, currentUser.id, currentUser.email);
@@ -23908,6 +23913,24 @@ ${suffix}`;
       }
       bookmarks = result.infolders_bookmarks || [];
       infoldersPremium = result.infolders_premium || null;
+      // Login avviato dal popup Premium della toolbar: completa qui la
+      // sessione Supabase (il popup salva solo currentUser + id_token).
+      if (currentUser) {
+        chrome.storage.local.get(["pending_google_id_token", "supabase_session"], async (pend) => {
+          try {
+            if (pend && pend.pending_google_id_token && !(pend.supabase_session && pend.supabase_session.access_token)) {
+              const data = await signInWithGoogleToken(pend.pending_google_id_token, currentUser.id);
+              if (data && data.session) {
+                await chrome.storage.local.set({ supabase_session: data.session });
+              }
+              await syncFromCloud();
+            }
+          } catch (e) {
+            console.warn("InFolders completamento login dal popup:", e);
+          }
+          chrome.storage.local.remove(["pending_google_id_token"]);
+        });
+      }
       const tombKey = tombstoneStorageKey();
       chrome.storage.local.get([tombKey], (res) => {
         syncTombstones = Array.isArray(res && res[tombKey]) ? res[tombKey] : [];
@@ -24766,6 +24789,7 @@ ${suffix}`;
       showToast("Errore sync cloud: " + msg, "error", 4e3);
     });
   }
+  var _pendingLoginResolve = null;
   function loginWithGoogle() {
     if (!requireExtensionContext()) return;
     chrome.runtime.sendMessage({ action: "loginWithGoogle" }, (response) => {
@@ -24780,6 +24804,45 @@ ${suffix}`;
       if (response.token) {
         fetchUserInfo(response.token);
       }
+    });
+  }
+  // Versione promise di loginWithGoogle: risolve a login completato,
+  // così chi clicca "abbonati" senza accesso fa login e poi paga.
+  function loginWithGoogleAsync() {
+    return new Promise((resolve, reject) => {
+      if (!requireExtensionContext()) {
+        reject(new Error("Estensione non disponibile. Ricarica la pagina."));
+        return;
+      }
+      if (currentUser) {
+        resolve(currentUser);
+        return;
+      }
+      _pendingLoginResolve = { resolve, reject };
+      chrome.runtime.sendMessage({ action: "loginWithGoogle" }, (response) => {
+        if (chrome.runtime.lastError) {
+          _pendingLoginResolve = null;
+          const err = new Error("Errore login: " + chrome.runtime.lastError.message);
+          showToast(err.message, "error");
+          reject(err);
+          return;
+        }
+        if (!response || response.error) {
+          _pendingLoginResolve = null;
+          const err = new Error("Errore login: " + ((response && response.error) || "risposta vuota"));
+          showToast(err.message, "error");
+          reject(err);
+          return;
+        }
+        if (response.token) {
+          fetchUserInfo(response.token);
+        } else {
+          _pendingLoginResolve = null;
+          const err = new Error("Token non ricevuto");
+          showToast("Errore login: " + err.message, "error");
+          reject(err);
+        }
+      });
     });
   }
    async function fetchUserInfo(idToken) {
@@ -24819,8 +24882,18 @@ ${suffix}`;
          _reopeningSidebar = false;
          openSidebar();
        }, 300);
+       if (_pendingLoginResolve) {
+         const r = _pendingLoginResolve;
+         _pendingLoginResolve = null;
+         r.resolve(currentUser);
+       }
      } catch (e) {
        showToast("Errore recupero info utente", "error");
+       if (_pendingLoginResolve) {
+         const r = _pendingLoginResolve;
+         _pendingLoginResolve = null;
+         r.reject(e instanceof Error ? e : new Error("Errore recupero info utente"));
+       }
      }
    }
   function logout() {
@@ -24955,7 +25028,7 @@ ${suffix}`;
         } else if (plan === "pro") {
           startStripeCheckout(plan);
         } else if (plan === "team") {
-          showTeamContactForm();
+          startStripeCheckout(plan);
         }
         overlay.remove();
         showInPageButtons();
