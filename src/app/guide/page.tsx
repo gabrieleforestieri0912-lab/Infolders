@@ -7,8 +7,17 @@ import Header from '../Header';
 
 
 export const metadata: Metadata = {
-  title: 'Guida — InFolders',
+  title: 'Guida — Come usare InFolders su ChatGPT, Gemini, Claude e Perplexity',
   description: 'Guida completa all\'estensione InFolders: come installare, creare cartelle, usare bookmark, ricerca globale, libreria prompt e profili istruzioni su ChatGPT, Gemini, Claude e Perplexity.',
+  alternates: {
+    canonical: 'https://infolders.vercel.app/guide',
+  },
+  openGraph: {
+    title: 'Guida InFolders — Cartelle, bookmark, prompt e profili',
+    description: 'Impara a organizzare le conversazioni AI: installazione, cartelle, bookmark, ricerca globale, prompt e profili istruzioni.',
+    url: 'https://infolders.vercel.app/guide',
+    type: 'article',
+  },
 };
 
 /* ─── Tipi ─────────────────────────────────────────────── */

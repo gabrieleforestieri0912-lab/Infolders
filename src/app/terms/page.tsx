@@ -6,6 +6,10 @@ import Footer from '../Footer';
 export const metadata: Metadata = {
   title: 'Termini di Servizio | InFolders',
   description: 'Termini e condizioni di utilizzo di InFolders, l\'estensione browser per organizzare le conversazioni AI in cartelle, bookmark e profili istruzioni.',
+  alternates: {
+    canonical: 'https://infolders.vercel.app/terms',
+  },
+  robots: { index: true, follow: true },
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (

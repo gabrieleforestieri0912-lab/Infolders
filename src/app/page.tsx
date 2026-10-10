@@ -28,6 +28,43 @@ const XIcon = () => (
 
 const platforms = Object.entries(PLATFORM_COLORS).map(([name, { color }]) => ({ name, color }));
 
+const faqs = [
+  {
+    q: "Cos'è InFolders?",
+    a: "InFolders è un'estensione browser che aggiunge una sidebar intelligente a ChatGPT, Gemini, Claude e Perplexity per organizzare le conversazioni in cartelle, bookmark, prompt e profili istruzioni.",
+  },
+  {
+    q: 'Come installo InFolders?',
+    a: 'InFolders è disponibile sul Chrome Web Store. Basta cliccare su "Aggiungi a Chrome" e l\u2019estensione sarà attiva su ChatGPT, Gemini, Claude e Perplexity.',
+  },
+  {
+    q: 'InFolders è gratuito?',
+    a: 'Sì, il piano Free include 50 chat nelle cartelle e bookmark illimitati. Il piano Pro (€9,99/mese) sblocca chat illimitate, sync cloud, libreria prompt e profili istruzioni.',
+  },
+  {
+    q: 'Quali piattaforme AI supporta?',
+    a: 'InFolders funziona con ChatGPT, Google Gemini, Claude e Perplexity.',
+  },
+  {
+    q: 'I miei dati sono al sicuro?',
+    a: 'Sì. I dati restano sul tuo dispositivo tramite le API di storage del browser. Solo il piano Pro sincronizza su cloud via Supabase con HTTPS e Google OAuth 2.0.',
+  },
+  {
+    q: 'Il piano Pro è un abbonamento mensile?',
+    a: 'Sì. Il piano Pro costa €9,99 al mese tramite Stripe e puoi disdire quando vuoi. Il piano Team costa €29,99 al mese.',
+  },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
 const howItWorksSteps = [
   {
     step: '01',
@@ -52,6 +89,7 @@ const howItWorksSteps = [
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#09000d] font-sans text-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <Header />
 
@@ -79,7 +117,7 @@ export default function Home() {
               className="absolute -inset-4 rounded-[40px] opacity-40 blur-2xl"
               style={{ background: 'conic-gradient(from 0deg, #a855f7, #60a5fa, #fb923c, #06b6d4, #a855f7)' }}
             />
-            <Image src="/icon-128.png" alt="InFolders" width={96} height={96} className="relative rounded-3xl shadow-2xl" />
+            <Image src="/icon-128.png" alt="InFolders — estensione per organizzare conversazioni AI in cartelle" width={96} height={96} className="relative rounded-3xl shadow-2xl" priority />
           </div>
         </div>
 

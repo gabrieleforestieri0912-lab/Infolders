@@ -6,6 +6,10 @@ import Footer from '../Footer';
 export const metadata: Metadata = {
   title: 'Privacy Policy | InFolders',
   description: 'Informativa sulla privacy di InFolders, l\'estensione browser per organizzare le conversazioni AI in cartelle, bookmark e profili istruzioni.',
+  alternates: {
+    canonical: 'https://infolders.vercel.app/privacy',
+  },
+  robots: { index: true, follow: true },
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
