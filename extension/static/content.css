@@ -1,3 +1,18 @@
+/* ─── Font InFolders ──────────────────────────────────────────
+   Stesso stack del sito (globals.css → --font-sans).
+   Le pagine ospite (ChatGPT, Gemini, Claude, Perplexity) usano font
+   propri: senza questa regola tutti i testi iniettati da InFolders
+   (badge, bookmark, pulsanti fluttuanti, tour, popup) erediterebbero
+   il font dell'host invece di quello del sito. */
+[id^="infolders-"],
+[id^="infolders-"] *,
+[class*="infolders-"],
+[class*="infolders-"] * {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
 .infolders-chat-row {
   position: relative;
 }

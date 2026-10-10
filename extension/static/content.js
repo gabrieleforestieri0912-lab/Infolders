@@ -22180,6 +22180,7 @@ ${suffix}`;
     Object.assign(container.style, {
       position: "fixed",
       top: "100px",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       [isRight ? "right" : "left"]: "28px",
       zIndex: "2147483647",
       display: "flex",
@@ -24511,6 +24512,7 @@ ${suffix}`;
     Object.assign(overlay.style, {
       position: "fixed",
       top: "0",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       left: "0",
       width: "100%",
       height: "100%",
@@ -24527,6 +24529,7 @@ ${suffix}`;
     popup.id = "infolders-tour-popup";
     Object.assign(popup.style, {
       background: theme.bg,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       border: `1px solid ${theme.glassBorder}`,
       borderRadius: "20px",
       padding: "32px 28px",
