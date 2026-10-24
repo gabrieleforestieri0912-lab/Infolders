@@ -161,6 +161,27 @@
         glassBorder: "rgba(6, 182, 212, 0.15)"
       }
     },
+    "grok.com": {
+      name: "Grok",
+      apiUrl: "https://grok.com",
+      sidebarPosition: "right",
+      theme: {
+        primary: "#14b8a6",
+        secondary: "#5eead4",
+        accent: "#99f6e4",
+        appAccent: "#14b8a6",
+        bg: "#000000",
+        surface: "rgba(20, 184, 166, 0.12)",
+        surfaceHover: "rgba(20, 184, 166, 0.2)",
+        border: "rgba(20, 184, 166, 0.3)",
+        buttonGlow: "0 0 20px rgba(20, 184, 166, 0.35)",
+        badgeColor: "#5eead4",
+        textPrimary: "#ffffff",
+        textSecondary: "#7d9a95",
+        glassBg: "#0a0a0a",
+        glassBorder: "rgba(20, 184, 166, 0.15)"
+      }
+    },
     "www.perplexity.ai": {
       name: "Perplexity",
       apiUrl: "https://www.perplexity.ai",
@@ -185,7 +206,12 @@
   };
   function getPlatformConfig() {
     if (typeof window === "undefined" || !window.location) return void 0;
-    return PLATFORM_CONFIGS[window.location.hostname];
+    const host = window.location.hostname;
+    if (PLATFORM_CONFIGS[host]) return PLATFORM_CONFIGS[host];
+    // Varianti "www." coperte dal manifest (www.chatgpt.com, www.claude.ai, ...):
+    // si risolve con la configurazione del dominio senza www.
+    if (host.startsWith("www.")) return PLATFORM_CONFIGS[host.slice(4)];
+    return void 0;
   }
 
   // src/extension/lib/plans.ts
@@ -22068,6 +22094,8 @@ ${suffix}`;
       case "perplexity.ai":
       case "www.perplexity.ai":
         return /^\/(search|thread|library)\//.test(path);
+      case "grok.com":
+        return /^\/(chat|c)\/[^/?#]+/.test(path);
       default:
         return false;
     }
@@ -22917,7 +22945,7 @@ ${suffix}`;
     const url = normalizeUrl(window.location.href);
     if (!isChatUrl()) return null;
     let name = "";
-    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    const spec = getBookmarkHostSpec();
     if (spec) {
       const anchors = collectBookmarkAnchors(spec.anchorSelectors);
       const currentPath = window.location.pathname;
@@ -22946,7 +22974,7 @@ ${suffix}`;
     const config = getPlatformConfig();
     const platformName = config?.name || "Chat";
     const accent = theme.appAccent || theme.primary;
-    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    const spec = getBookmarkHostSpec();
     const allChats = [];
     if (spec) {
       const anchors = collectBookmarkAnchors(spec.anchorSelectors);
@@ -25119,10 +25147,18 @@ ${suffix}`;
     });
     requestAnimationFrame(() => overlay.style.opacity = "1");
   }
+  // ─── Interfaccia adapter comune ─────────────────────────────────────────────
+  // Ogni spec di piattaforma implementa, oltre ai selettori delle righe chat:
+  //   - messageSelectors: contenitori dei singoli messaggi della conversazione
+  //     aperta (per export/transfer e ricerca full-text). Best-effort, con
+  //     fallback generici: le piattaforme cambiano DOM frequentemente.
+  //   - inputSelectors: campo di input della chat (per inserire prompt).
   var BOOKMARK_CHATGPT_SPEC = {
     anchorSelectors: ['aside a[href*="/c/"]', 'nav a[href*="/c/"]'],
     hrefTest: (href) => /\/c\/[a-f0-9-]{8,}/i.test(href || ""),
-    inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[data-testid*="sidebar"]')
+    inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[data-testid*="sidebar"]'),
+    messageSelectors: ['[data-message-author-role]', 'div[data-testid^="conversation-turn"]'],
+    inputSelectors: ['#prompt-textarea', 'form div[contenteditable="true"]']
   };
   var BOOKMARK_CLAUDE_SPEC = {
     anchorSelectors: ['aside a[href*="/chat/"]', 'nav a[href*="/chat/"]', '[class*="sidebar" i] a[href*="/chat/"]', '[class*="SideNav" i] a[href*="/chat/"]', 'a[href^="/chat/"]'],
@@ -25135,7 +25171,9 @@ ${suffix}`;
         return false;
       }
     },
-    inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[class*="sidebar" i]') || a.closest('[class*="SideNav" i]')
+    inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[class*="sidebar" i]') || a.closest('[class*="SideNav" i]'),
+    messageSelectors: ['[data-testid="user-message"]', '.font-claude-message', '.font-claude-response'],
+    inputSelectors: ['div[contenteditable="true"].ProseMirror', 'div[contenteditable="true"]']
   };
   var BOOKMARK_GEMINI_SPEC = {
     anchorSelectors: ['aside a[href*="/app/"]', 'nav a[href*="/app/"]', 'div[role="navigation"] a[href*="/app/"]', 'bard-sidenav a[href*="/app/"]', 'mat-nav-list a[href*="/app/"]', 'a[href*="/app/"]', 'a[href*="gemini.google.com/app/"]'],
@@ -25150,7 +25188,9 @@ ${suffix}`;
     inSidebar: (a) => a.closest("mat-nav-list") || a.closest("bard-sidenav") || a.closest("aside") || a.closest("nav") || a.closest('div[role="navigation"]') || a.closest('[class*="sidenav" i]') || a.closest('[class*="side-nav" i]') || a.closest('[role="complementary"]'),
     // Su Gemini la riga della chat È l'anchor stessa (a.mat-mdc-list-item): il pulsante
     // bookmark va appeso in fondo all'anchor (lato destro), non davanti.
-    anchorIsRow: true
+    anchorIsRow: true,
+    messageSelectors: ['user-query', 'model-response', '.query-content', '.response-container-content'],
+    inputSelectors: ['rich-textarea div[contenteditable="true"]', 'div.ql-editor', 'div[contenteditable="true"]']
   };
   var BOOKMARK_PERPLEXITY_SPEC = {
     anchorSelectors: ['aside a[href*="/search/"], aside a[href*="/thread/"], aside a[href*="/library/"]', 'nav a[href*="/search/"], nav a[href*="/thread/"], nav a[href*="/library/"]', '[class*="library" i] a[href*="/search/"], [class*="library" i] a[href*="/thread/"], [class*="library" i] a[href*="/library/"]', '[class*="sidebar" i] a[href*="/search/"], [class*="sidebar" i] a[href*="/thread/"], [class*="sidebar" i] a[href*="/library/"]'],
@@ -25166,7 +25206,26 @@ ${suffix}`;
     inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[class*="library" i]') || a.closest('[class*="sidebar" i]') || a.closest('[role="complementary"]'),
     // Le righe chat di Perplexity sono anchor dentro la sidebar sinistra: niente pulsanti
     // "fissa"/overflow come ChatGPT, quindi il bookmark va appeso in fondo all'anchor.
-    anchorIsRow: true
+    anchorIsRow: true,
+    messageSelectors: ['[data-testid="thread-message"]', 'div[class*="markdown"]'],
+    inputSelectors: ['div[contenteditable="true"]']
+  };
+  // Grok: adapter sperimentale. I selettori vanno validati sul DOM reale prima
+  // di basare feature critiche (transfer, ricerca) su questa piattaforma.
+  var BOOKMARK_GROK_SPEC = {
+    anchorSelectors: ['aside a[href*="/chat/"]', 'nav a[href*="/chat/"]', '[class*="sidebar" i] a[href*="/chat/"]', 'a[href^="/chat/"]'],
+    hrefTest: (href) => {
+      try {
+        const u = new URL(href, location.href);
+        const host = u.hostname || "";
+        return (host === "grok.com" || host.endsWith(".grok.com")) && /^\/(chat|c)\/[^/?#]+/.test(u.pathname);
+      } catch {
+        return false;
+      }
+    },
+    inSidebar: (a) => a.closest("aside") || a.closest("nav") || a.closest('[class*="sidebar" i]') || a.closest('[role="complementary"]'),
+    messageSelectors: ['div[data-message-id]', 'article'],
+    inputSelectors: ['textarea', 'div[contenteditable="true"]']
   };
   var BOOKMARK_HOST_SPECS = {
     "chatgpt.com": BOOKMARK_CHATGPT_SPEC,
@@ -25174,8 +25233,15 @@ ${suffix}`;
     "claude.ai": BOOKMARK_CLAUDE_SPEC,
     "gemini.google.com": BOOKMARK_GEMINI_SPEC,
     "perplexity.ai": BOOKMARK_PERPLEXITY_SPEC,
-    "www.perplexity.ai": BOOKMARK_PERPLEXITY_SPEC
+    "www.perplexity.ai": BOOKMARK_PERPLEXITY_SPEC,
+    "grok.com": BOOKMARK_GROK_SPEC
   };
+  function getBookmarkHostSpec() {
+    const host = window.location.hostname;
+    if (BOOKMARK_HOST_SPECS[host]) return BOOKMARK_HOST_SPECS[host];
+    if (host.startsWith("www.")) return BOOKMARK_HOST_SPECS[host.slice(4)];
+    return void 0;
+  }
   function collectBookmarkAnchors(selectors) {
     const seen = /* @__PURE__ */ new Set();
     const out = [];
@@ -25193,7 +25259,7 @@ ${suffix}`;
     return out;
   }
   function findChatRow(anchor) {
-    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    const spec = getBookmarkHostSpec();
     // Gemini/Perplexity: la riga È l'anchor stessa (niente wrapper li/article con
     // pulsanti "fissa"/overflow come ChatGPT/Claude) — il bookmark va appeso dentro.
     if (spec?.anchorIsRow) return anchor;
@@ -25228,7 +25294,7 @@ ${suffix}`;
       if (!isChatUrl()) return;
       const config = getPlatformConfig();
       if (!config) return;
-      const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+      const spec = getBookmarkHostSpec();
       if (!spec) return;
       const theme = config.theme;
       const anchors = collectBookmarkAnchors(spec.anchorSelectors);
@@ -25400,7 +25466,7 @@ ${suffix}`;
       return;
     }
     const config = getPlatformConfig();
-    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    const spec = getBookmarkHostSpec();
     if (!config || !spec) return;
     clearPageChatSearchHighlight();
     const accent = config.theme.appAccent || config.theme.primary;
@@ -25615,7 +25681,7 @@ ${suffix}`;
       if (!isChatUrl()) return;
       const config = getPlatformConfig();
       if (!config) return;
-      const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+      const spec = getBookmarkHostSpec();
       if (!spec) return;
       if (document.getElementById("infolders-inpage-folders-section")) {
         return;
