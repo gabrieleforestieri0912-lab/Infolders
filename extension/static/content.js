@@ -21940,6 +21940,165 @@ ${suffix}`;
       finalizePromptUsage(applyPromptVariables(prompt.content, values));
     });
   }
+  // ─── Trigger ":" ────────────────────────────────────────────────────────────
+  // Digitando ":" come primo carattere in un campo input VUOTO della chat si
+  // apre la libreria prompt in popup: ricerca, navigazione via freccia, Invio.
+  // Non scatta nell'UI dell'estensione (sidebar/popup) n\u00e9 su campi con contenuto.
+  var PROMPT_TRIGGER_POPUP_ID = "infolders-prompt-trigger-popup";
+  function closePromptTriggerPopup() {
+    const popup = document.getElementById(PROMPT_TRIGGER_POPUP_ID);
+    if (popup) popup.remove();
+  }
+  function isPromptTriggerInput(el) {
+    if (!el || (el.closest && (el.closest("#infolders-sidebar") || el.closest("#" + PROMPT_TRIGGER_POPUP_ID)))) return false;
+    if (el.className && typeof el.className === "string" && /(^|\s)infolders-/.test(el.className)) return false;
+    const tag = el.tagName ? el.tagName.toLowerCase() : "";
+    if (tag === "textarea") return true;
+    if (tag === "input") {
+      const type = (el.getAttribute("type") || "text").toLowerCase();
+      return type === "text" || type === "search" || type === "url";
+    }
+    return el.isContentEditable === true;
+  }
+  function promptTriggerInputIsEmpty(el) {
+    try {
+      if (typeof el.value === "string") return el.value.trim() === "";
+      return (el.textContent || "").trim() === "";
+    } catch {
+      return false;
+    }
+  }
+  function showPromptTriggerPopup(inputEl) {
+    const theme = currentTheme;
+    const popupOverlay = document.createElement("div");
+    popupOverlay.id = PROMPT_TRIGGER_POPUP_ID;
+    Object.assign(popupOverlay.style, {
+      position: "fixed", width: "100%", height: "100%", top: "0", left: "0",
+      background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)",
+      zIndex: "2147483647", display: "flex", alignItems: "center", justifyContent: "center"
+    });
+    const panel = document.createElement("div");
+    Object.assign(panel.style, {
+      background: theme.bg, border: `1px solid ${theme.glassBorder}`, borderRadius: "16px",
+      width: "90%", maxWidth: "420px", maxHeight: "420px", display: "flex", flexDirection: "column",
+      overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.55)", color: "#fff", padding: "14px"
+    });
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong style="font-size:13px;font-weight:600;">Libreria prompt</strong>
+        <span style="color:${theme.textSecondary};font-size:10px;">\u2191\u2193 naviga \u00b7 Invio usa \u00b7 Esc chiude</span>
+      </div>
+    `;
+    const searchEl = document.createElement("input");
+    searchEl.type = "search";
+    searchEl.placeholder = "Cerca prompt...";
+    Object.assign(searchEl.style, {
+      width: "100%", boxSizing: "border-box", padding: "9px 11px",
+      borderRadius: "10px", border: `1px solid ${theme.border}`, background: theme.glassBg,
+      color: "#fff", fontSize: "12px", outline: "none", marginBottom: "10px"
+    });
+    const list = document.createElement("div");
+    Object.assign(list.style, {
+      flex: "1", overflowY: "auto", minHeight: "0"
+    });
+    panel.appendChild(searchEl);
+    panel.appendChild(list);
+    let items = [];
+    let selIdx = -1;
+    function updateSelection() {
+      [...list.children].forEach((el, i) => {
+        if (i === selIdx) {
+          el.style.background = theme.surface;
+          el.style.borderColor = theme.appAccent + "44";
+        } else {
+          el.style.background = "transparent";
+          el.style.borderColor = "transparent";
+        }
+      });
+      if (selIdx >= 0 && list.children[selIdx]) {
+        try {
+          list.children[selIdx].scrollIntoView({ block: "nearest" });
+        } catch {
+        }
+      }
+    }
+    function renderList(q) {
+      list.innerHTML = "";
+      items = filterPrompts(q);
+      if (!items.length) {
+        list.innerHTML = `<div style="text-align:center;padding:24px 12px;color:${theme.textSecondary};font-size:12px;">Nessun prompt. Creane uno dalla sidebar (tab Prompt).</div>`;
+        selIdx = -1;
+        return;
+      }
+      items.forEach((p, i) => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:8px 10px;border-radius:9px;cursor:pointer;border:1px solid transparent;";
+        row.innerHTML = `
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">
+            <strong style="font-size:12px;font-weight:600;color:${theme.textPrimary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(p.title) || "Prompt")}</strong>
+            ${p.category ? `<span style="color:${theme.appAccent};font-size:10px;flex-shrink:0;">${escapeHtml(p.category)}</span>` : ""}
+          </div>
+          ${p.content ? `<div style="color:${theme.textSecondary};font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(p.content))}</div>` : ""}
+        `;
+        row.addEventListener("mouseenter", () => {
+          selIdx = i;
+          updateSelection();
+        });
+        row.addEventListener("click", () => choosePrompt(p));
+        list.appendChild(row);
+      });
+      selIdx = 0;
+      updateSelection();
+    }
+    function choosePrompt(prompt) {
+      closePromptTriggerPopup();
+      usePrompt(prompt);
+    }
+    searchEl.addEventListener("input", () => renderList(searchEl.value));
+    searchEl.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" && items.length) {
+        selIdx = (selIdx + 1) % items.length;
+        updateSelection();
+        e.preventDefault();
+      } else if (e.key === "ArrowUp" && items.length) {
+        selIdx = (selIdx - 1 + items.length) % items.length;
+        updateSelection();
+        e.preventDefault();
+      } else if (e.key === "Enter") {
+        if (selIdx >= 0 && items[selIdx]) {
+          e.preventDefault();
+          choosePrompt(items[selIdx]);
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closePromptTriggerPopup();
+      } else if (e.key === ":") {
+        e.preventDefault();
+      }
+    });
+    popupOverlay.addEventListener("mousedown", (e) => {
+      if (e.target === popupOverlay) closePromptTriggerPopup();
+    });
+    promptOverlay.appendChild(panel);
+    document.body.appendChild(popupOverlay);
+    renderList("");
+    searchEl.focus();
+  }
+  function attachPromptTriggerListener() {
+    window.addEventListener("keydown", (e) => {
+      const popup = document.getElementById(PROMPT_TRIGGER_POPUP_ID);
+      if (popup && popup.contains(e.target)) return;
+      if (popup && (e.key === "Escape" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey))) {
+        closePromptTriggerPopup();
+      }
+      if (e.key !== ":" || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      const target = e.target;
+      if (!isPromptTriggerInput(target) || !promptTriggerInputIsEmpty(target)) return;
+      if (!getBookmarkHostSpec()) return;
+      e.preventDefault();
+      showPromptTriggerPopup(target);
+    }, true);
+  }
 
   // src/extension/lib/instruction-profiles.ts
   var STORAGE_KEY3 = "infolders_profiles";
@@ -22661,6 +22820,10 @@ ${suffix}`;
         }
       }
     }, true);
+  }
+  if (!window.__infoldersPromptTriggerAttached) {
+    window.__infoldersPromptTriggerAttached = true;
+    attachPromptTriggerListener();
   }
   function rebuildTabBar() {
     const tabsContainer = document.querySelector("[data-tab-bar]");
