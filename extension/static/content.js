@@ -23044,6 +23044,28 @@ ${suffix}`;
     const list = container.querySelector("#sidebar-folders-list");
     if (!list) return;
     list.innerHTML = "";
+    // Drop su una zona vuota del container = sposta in root.
+    // Il guard evita il doppio aggancio: l'elemento list NON viene ricreato a ogni render.
+    if (!list.__infoldersFolderDrop) {
+      list.__infoldersFolderDrop = true;
+      list.addEventListener("dragover", (e) => {
+        const payload = getInFoldersDragData();
+        if (payload && payload.type === "folder") {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        }
+      });
+      list.addEventListener("drop", (e) => {
+        const payload = parseInFoldersDragPayload(e.dataTransfer);
+        if (payload && payload.type === "folder") {
+          e.preventDefault();
+          const movedFolder = findFolderById(folders, payload.id);
+          if (moveFolderToTarget(payload.id, null)) {
+            showToast(`"${(movedFolder && movedFolder.name) || "Cartella"}" spostata in Root`, "success");
+          }
+        }
+      });
+    }
     const q = (folderSearchQuery || "").trim();
     const tree = q ? filterFolderTreeByQuery(folders, q) : folders;
     if (tree.length === 0 && q) {
@@ -23242,6 +23264,52 @@ ${suffix}`;
       e.preventDefault();
       e.stopPropagation();
       showFolderContextMenu(e, folder);
+    });
+    header.draggable = true;
+    header.title = "Trascina su un'altra cartella per spostare; su una cartella per aggiungere chat";
+    header.addEventListener("dragstart", (e) => {
+      e.stopPropagation();
+      setInFoldersDragData({ type: "folder", id: folder.id });
+      try {
+        e.dataTransfer.setData("application/x-infolders", "__infolders_dnd__");
+        e.dataTransfer.effectAllowed = "move";
+      } catch {
+      }
+      header.addEventListener("dragend", () => setInFoldersDragData(null), { once: true });
+    });
+    header.addEventListener("dragover", (e) => {
+      const payload = getInFoldersDragData();
+      if (!payload) return;
+      if (payload.type === "folder") {
+        if (payload.id === folder.id || isFolderDescendant(payload.id, folder.id)) return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = payload.type === "folder" ? "move" : "copy";
+      applyFolderDropHighlight(header, true);
+    });
+    header.addEventListener("dragleave", () => {
+      applyFolderDropHighlight(header, false);
+    });
+    header.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      applyFolderDropHighlight(header, false);
+      const payload = parseInFoldersDragPayload(e.dataTransfer);
+      if (!payload) return;
+      if (payload.type === "folder") {
+        if (payload.id === folder.id) return;
+        if (isFolderDescendant(payload.id, folder.id)) {
+          showToast("Non puoi spostare una cartella dentro sé stessa o una sua sottocartella", "error");
+          return;
+        }
+        const movedFolder = findFolderById(folders, payload.id);
+        if (moveFolderToTarget(payload.id, folder.id)) {
+          showToast(`"${(movedFolder && movedFolder.name) || "Cartella"}" spostata in ${folder.name}`, "success");
+        }
+      } else if (payload.type === "bookmark") {
+        addChatToFolder(folder, { name: payload.name, url: payload.url, platform: payload.platform });
+      }
     });
     if (folder.subfolders && folder.subfolders.length > 0) {
       const subfoldersDiv = document.createElement("div");
@@ -23651,6 +23719,89 @@ ${suffix}`;
     }
     return null;
   }
+  // ─── Drag & drop cartelle/chat ─────────────────────────────────────────────
+  // Payload su dataTransfer: { type: "folder" | "bookmark", id, url, name, platform }.
+  // Un drop di "folder" su un header (o sul container) sposta la cartella; un
+  // drop di "bookmark" (o chat) su un header aggiunge la chat alla cartella.
+  // NB: durante `dragover` i browser bloccano getData() (solo al drop è
+  // leggibile), quindi il payload viene custodito anche in una variabile di
+  // modulo impostata al dragstart — il dataTransfer resta come fallback.
+  var _infoldersDragData = null;
+  function setInFoldersDragData(data) {
+    _infoldersDragData = data;
+  }
+  function getInFoldersDragData() {
+    return _infoldersDragData;
+  }
+  function parseInFoldersDragPayload(dataTransfer) {
+    if (_infoldersDragData) return _infoldersDragData;
+    try {
+      const raw = dataTransfer.getData("application/x-infolders") || dataTransfer.getData("text/plain");
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || (data.type !== "folder" && data.type !== "bookmark")) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+  function isFolderDescendant(sourceId, targetId) {
+    const source = findFolderById(folders, sourceId);
+    if (!source) return false;
+    return !!findFolderById(source.subfolders || [], targetId);
+  }
+  function moveFolderToTarget(folderId, targetId) {
+    if (folderId === targetId) return false;
+    if (targetId != null && isFolderDescendant(folderId, targetId)) {
+      showToast("Non puoi spostare una cartella dentro sé stessa o una sua sottocartella", "error");
+      return false;
+    }
+    const nodeToMove = findAndRemoveFolder(folders, folderId);
+    if (!nodeToMove) {
+      showToast("Errore nello spostamento della cartella", "error");
+      return false;
+    }
+    nodeToMove.updatedAt = nowIso();
+    const destParent = targetId != null ? findFolderById(folders, targetId) : null;
+    if (destParent) {
+      destParent.subfolders = destParent.subfolders || [];
+      destParent.subfolders.push(nodeToMove);
+    } else {
+      folders.push(nodeToMove);
+    }
+    saveFolders();
+    const container = document.getElementById("infolders-sidebar-content");
+    if (container) renderFoldersList(container);
+    queueCloudSync();
+    return true;
+  }
+  function addChatToFolder(folder, chat) {
+    if (!folder || !chat || !chat.url) return false;
+    if ((folder.chats || []).some((c) => normalizeUrl(c.url || "") === normalizeUrl(chat.url))) {
+      showToast(`"${collapseText(chat.name || "Chat")}" è già in ${folder.name}`, "info");
+      return false;
+    }
+    folder.chats = folder.chats || [];
+    folder.chats.push({ name: chat.name || "Chat", url: chat.url, platform: chat.platform || "Generico" });
+    folder.updatedAt = nowIso();
+    saveFolders();
+    const container = document.getElementById("infolders-sidebar-content");
+    if (container) renderFoldersList(container);
+    queueCloudSync();
+    showToast(`Chat aggiunta a ${folder.name}`, "success");
+    return true;
+  }
+  function applyFolderDropHighlight(el, active) {
+    if (!el) return;
+    if (active) {
+      el.dataset.infoldersPrevBox = el.style.boxShadow || "";
+      el.style.boxShadow = `inset 0 0 0 2px ${currentTheme.appAccent}`;
+      el.style.background = currentTheme.surfaceHover;
+    } else {
+      el.style.boxShadow = el.dataset.infoldersPrevBox != null ? el.dataset.infoldersPrevBox : "";
+      delete el.dataset.infoldersPrevBox;
+    }
+  }
   function showMoveFolderDialog(folder) {
     const theme = currentTheme;
     const overlay = document.createElement("div");
@@ -23698,29 +23849,10 @@ ${suffix}`;
     modal.querySelector("#move-cancel").addEventListener("click", () => overlay.remove());
     modal.querySelector("#move-save").addEventListener("click", () => {
       const target = modal.querySelector("#move-target-select").value;
-      const nodeToMove = findAndRemoveFolder(folders, folder.id);
-      if (!nodeToMove) {
-        showToast("Errore nello spostamento della cartella", "error");
-        overlay.remove();
-        return;
-      }
-      nodeToMove.updatedAt = nowIso();
-      if (target === "root") {
-        folders.push(nodeToMove);
-      } else {
-        const destParent = findFolderById(folders, Number(target));
-        if (destParent) {
-          destParent.subfolders = destParent.subfolders || [];
-          destParent.subfolders.push(nodeToMove);
-        } else {
-          folders.push(nodeToMove);
-        }
-      }
-      saveFolders();
-      const container = document.getElementById("infolders-sidebar-content");
-      if (container) renderFoldersList(container);
-      showToast("Cartella spostata con successo", "success");
+      const targetId = target === "root" ? null : Number(target);
+      const moved = moveFolderToTarget(folder.id, targetId);
       overlay.remove();
+      if (moved) showToast("Cartella spostata con successo", "success");
     });
   }
   function showEditLogoDialog(folder) {
@@ -24055,6 +24187,26 @@ ${suffix}`;
         item.style.background = theme.surface;
         item.style.borderColor = theme.border;
         item.style.borderLeftColor = theme.appAccent;
+      });
+      item.draggable = true;
+      item.addEventListener("dragstart", (e) => {
+        e.stopPropagation();
+        setInFoldersDragData({
+          type: "bookmark",
+          id: bookmark.id,
+          url: bookmark.url,
+          name: bookmark.name,
+          platform: bookmark.platform
+        });
+        try {
+          e.dataTransfer.setData(
+            "application/x-infolders",
+            "__infolders_dnd__"
+          );
+          e.dataTransfer.effectAllowed = "copyMove";
+        } catch {
+        }
+        item.addEventListener("dragend", () => setInFoldersDragData(null), { once: true });
       });
       const title = document.createElement("div");
       title.textContent = bookmark.name;
