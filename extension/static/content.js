@@ -22183,6 +22183,8 @@ ${suffix}`;
       if (foldersSection) foldersSection.remove();
       document.querySelectorAll(".infolders-bookmark-wrap").forEach((el) => el.remove());
       document.querySelectorAll(".infolders-chat-row").forEach((el) => el.classList.remove("infolders-chat-row"));
+      clearPageChatSearchHighlight();
+      pageChatSearchState.query = "";
     }
   }
   function injectUI() {
@@ -22238,6 +22240,7 @@ ${suffix}`;
     if (isSidebarOpen) return;
     isSidebarOpen = true;
     hideInPageButtons();
+    clearPageChatSearchHighlight();
     const theme = currentTheme;
     const isRight = currentPlatform.sidebarPosition === "right";
     const overlay = document.createElement("div");
@@ -22426,6 +22429,10 @@ ${suffix}`;
       if (overlay) overlay.remove();
       isSidebarOpen = false;
       if (!_reopeningSidebar) showInPageButtons();
+      // Se la ricerca in-page è ancora attiva, ripristina l'evidenziazione delle
+      // righe native dopo la chiusura della sidebar (che le copriva).
+      const inPageSearch = document.querySelector('#infolders-inpage-folders-section input[type="search"]');
+      if (!_reopeningSidebar && inPageSearch) setPageChatSearchQuery(inPageSearch.value);
     }, 350);
   }
   function closeActiveModal() {
@@ -22658,6 +22665,7 @@ ${suffix}`;
     searchEl.addEventListener("input", () => {
       folderSearchQuery = searchEl.value;
       renderFoldersList(container);
+      setPageChatSearchQuery(searchEl.value);
     });
     searchEl.addEventListener("focus", function() {
       this.style.borderColor = theme.appAccent;
@@ -25353,11 +25361,49 @@ ${suffix}`;
   // presenti nella sidebar del chatbot corrente e i bookmark, con azione rapida
   // "aggiungi a una cartella" diretta dal risultato.
   var GLOBAL_SEARCH_RESULTS_LIMIT = 20;
-  function collectPageChatsForSearch() {
-    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
-    if (!spec) return [];
+  // ─── Evidenziazione native durante la ricerca ──────────────────────────────
+  // La ricerca globale NON clona le righe chat nella view dell'estensione: le righe
+  // corrispondenti restano quelle native della sidebar del chatbot (Claude, ChatGPT,
+  // Gemini, Perplexity), rese interattive e integre, mentre le altre vengono scurite.
+  var pageChatSearchState = { query: "", changed: [] };
+  function clearPageChatSearchHighlight() {
+    pageChatSearchState.changed.forEach((entry) => {
+      try {
+        if (entry.style.background !== undefined) {
+          if (entry.stylePrev.background) entry.el.style.background = entry.stylePrev.background;
+          else entry.el.style.removeProperty("background");
+          if (entry.stylePrev.boxShadow) entry.el.style.boxShadow = entry.stylePrev.boxShadow;
+          else entry.el.style.removeProperty("box-shadow");
+          if (entry.stylePrev.opacity) entry.el.style.opacity = entry.stylePrev.opacity;
+          else entry.el.style.removeProperty("opacity");
+        }
+      } catch {
+      }
+    });
+    pageChatSearchState.changed = [];
+  }
+  function setPageChatSearchQuery(query) {
+    const q = normalizeSearchText(query);
+    if (!q) {
+      clearPageChatSearchHighlight();
+      pageChatSearchState.query = "";
+      return;
+    }
+    pageChatSearchState.query = q;
+    applyPageChatSearchHighlight();
+  }
+  function applyPageChatSearchHighlight() {
+    const q = pageChatSearchState.query;
+    if (!q) return;
+    if (isSidebarOpen) {
+      clearPageChatSearchHighlight();
+      return;
+    }
     const config = getPlatformConfig();
-    const platformName = config?.name || "Chat";
+    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    if (!config || !spec) return;
+    clearPageChatSearchHighlight();
+    const accent = config.theme.appAccent || config.theme.primary;
     const anchors = collectBookmarkAnchors(spec.anchorSelectors).filter((a) => {
       try {
         return spec.hrefTest(a.href || "");
@@ -25365,15 +25411,34 @@ ${suffix}`;
         return false;
       }
     });
-    const seen = /* @__PURE__ */ new Set();
-    const out = [];
-    for (const a of anchors) {
-      const url = normalizeUrl(a.href || "");
-      if (!url || seen.has(url)) continue;
-      seen.add(url);
-      out.push({ name: collapseText(a.innerText) || "Chat", url, platform: platformName });
+    const seenRows = /* @__PURE__ */ new Set();
+    let firstMatch = null;
+    let matchCount = 0;
+    anchors.forEach((a) => {
+      const row = spec.anchorIsRow ? a : findChatRow(a);
+      if (!row || !row.parentElement || seenRows.has(row)) return;
+      if (row.id === "infolders-inpage-folders-section" || row.querySelector?.("#infolders-inpage-folders-section")) return;
+      const isMatch = normalizeSearchText(collapseText(a.innerText)).includes(q) || normalizeUrl(a.href || "").toLowerCase().includes(q);
+      seenRows.add(row);
+      if (isMatch) {
+        matchCount++;
+        const prev = { background: row.style.background, boxShadow: row.style.boxShadow, opacity: row.style.opacity };
+        row.style.background = `${accent}22`;
+        row.style.boxShadow = `inset 3px 0 0 ${accent}, 0 0 0 1px ${accent}44`;
+        pageChatSearchState.changed.push({ el: row, stylePrev: prev });
+        if (!firstMatch) firstMatch = row;
+      } else {
+        const prev = { background: row.style.background, boxShadow: row.style.boxShadow, opacity: row.style.opacity };
+        row.style.opacity = "0.35";
+        pageChatSearchState.changed.push({ el: row, stylePrev: prev });
+      }
+    });
+    if (firstMatch) {
+      try {
+        firstMatch.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } catch {
+      }
     }
-    return out;
   }
   function collectFolderChatUrlSet() {
     const out = /* @__PURE__ */ new Set();
@@ -25466,10 +25531,8 @@ ${suffix}`;
     const q = normalizeSearchText(query);
     if (!q || !list) return;
     const theme = currentTheme;
-    const inFolderUrls = collectFolderChatUrlSet();
-    const pageChats = collectPageChatsForSearch().filter((c) => normalizeSearchText(c.name).includes(q) && !inFolderUrls.has(c.url));
     const bookmarkMatches = (bookmarks || []).filter((b) => normalizeSearchText(b.name).includes(q) || normalizeSearchText(b.platform || "").includes(q));
-    if (pageChats.length === 0 && bookmarkMatches.length === 0) return;
+    if (bookmarkMatches.length === 0) return;
     const sectionHeader = (label) => {
       const head = document.createElement("div");
       head.textContent = label;
@@ -25526,18 +25589,10 @@ ${suffix}`;
       row.addEventListener("click", () => openChat(chat.url));
       return row;
     };
-    if (bookmarkMatches.length > 0) {
-      sectionHeader(`Bookmark (${bookmarkMatches.length > GLOBAL_SEARCH_RESULTS_LIMIT ? GLOBAL_SEARCH_RESULTS_LIMIT + "+" : bookmarkMatches.length})`);
-      bookmarkMatches.slice(0, GLOBAL_SEARCH_RESULTS_LIMIT).forEach((b) => {
-        list.appendChild(chatRow(b, { badge: null }));
-      });
-    }
-    if (pageChats.length > 0) {
-      sectionHeader(`Chat della pagina (${pageChats.length > GLOBAL_SEARCH_RESULTS_LIMIT ? GLOBAL_SEARCH_RESULTS_LIMIT + "+" : pageChats.length})`);
-      pageChats.slice(0, GLOBAL_SEARCH_RESULTS_LIMIT).forEach((c) => {
-        list.appendChild(chatRow(c, { badge: null }));
-      });
-    }
+    sectionHeader(`Bookmark (${bookmarkMatches.length > GLOBAL_SEARCH_RESULTS_LIMIT ? GLOBAL_SEARCH_RESULTS_LIMIT + "+" : bookmarkMatches.length})`);
+    bookmarkMatches.slice(0, GLOBAL_SEARCH_RESULTS_LIMIT).forEach((b) => {
+      list.appendChild(chatRow(b, { badge: null }));
+    });
   }
   function renderInPageFoldersList(query) {
     const list = document.getElementById("infolders-inpage-folders-list");
@@ -25686,6 +25741,7 @@ ${suffix}`;
       });
       searchInput.addEventListener("input", () => {
         renderInPageFoldersList(searchInput.value);
+        setPageChatSearchQuery(searchInput.value);
       });
       searchWrapper.appendChild(searchIcon);
       searchWrapper.appendChild(searchInput);
@@ -25762,6 +25818,9 @@ ${suffix}`;
       if (!isChatUrl()) return;
       injectBookmarkButtons();
       injectInPageFoldersSection();
+      // React ricrea le righe della sidebar: riapplica l'evidenziazione della
+      // ricerca globale se una query è ancora attiva.
+      if (pageChatSearchState.query) applyPageChatSearchHighlight();
     }, 150);
   }
   new MutationObserver(() => {
