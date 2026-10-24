@@ -213,19 +213,26 @@
     const currentCount = countChatsInFolderTree(folderTree);
     return currentCount + chatsToAdd <= FREE_CHAT_LIMIT;
   }
+  function normalizeSearchText(text) {
+    // I titoli salvati via innerText possono contenere a capi interni e spazi
+    // unificatori (\u00A0) quando il titolo della chat va a capo nella sidebar.
+    // Collapsare ogni sequenza di spazio bianco in un singolo spazio rende
+    // il confronto robusto alla formattazione, sia lato query sia lato dato.
+    return String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
   function filterFolderTreeByQuery(nodes, query) {
-    const q = (query || "").trim().toLowerCase();
+    const q = normalizeSearchText(query);
     if (!q) return nodes || [];
     function walk(folders2) {
       const out = [];
       for (const f of folders2 || []) {
-        const nameMatch = (f.name || "").toLowerCase().includes(q);
+        const nameMatch = normalizeSearchText(f.name).includes(q);
         const sub = walk(f.subfolders || []);
-        const anyChatMatch = (f.chats || []).some((c) => (c.name || "").toLowerCase().includes(q));
+        const anyChatMatch = (f.chats || []).some((c) => normalizeSearchText(c.name).includes(q));
         if (nameMatch || anyChatMatch || sub.length) {
           let chatsOut = f.chats || [];
           if (anyChatMatch && !nameMatch) {
-            chatsOut = chatsOut.filter((c) => (c.name || "").toLowerCase().includes(q));
+            chatsOut = chatsOut.filter((c) => normalizeSearchText(c.name).includes(q));
           }
           out.push({ ...f, chats: chatsOut, subfolders: sub });
         }
@@ -233,6 +240,9 @@
       return out;
     }
     return walk(nodes || []);
+  }
+  function collapseText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
   }
 
   // src/extension/lib/i18n.ts
@@ -22936,7 +22946,7 @@ ${suffix}`;
         const url = normalizeUrl(a.href || "");
         if (!url || seenUrls.has(url)) continue;
         seenUrls.add(url);
-        allChats.push({ name: a.innerText?.trim() || "Chat", url, platform: platformName });
+        allChats.push({ name: collapseText(a.innerText) || "Chat", url, platform: platformName });
       }
     }
     const alreadyAdded = new Set((folder.chats || []).map((c) => c.url));
@@ -23129,15 +23139,15 @@ ${suffix}`;
     }
     function renderList(query) {
       listContainer.innerHTML = "";
-      const q = query.trim().toLowerCase();
-      const chats = q ? availableChats.filter((c) => c.name.toLowerCase().includes(q)) : availableChats;
+      const c = collapseText(query);
+      const chats = c ? availableChats.filter((x) => normalizeSearchText(x.name).includes(c.toLowerCase())) : availableChats;
       if (chats.length === 0) {
         listContainer.innerHTML = `<div style="text-align:center;padding:28px 12px;color:${theme.textSecondary};font-size:13px;">
-        ${q ? "No chats found matching your search." : "No chats available to add."}
+        ${c ? "No chats found matching your search." : "No chats available to add."}
       </div>`;
         return;
       }
-      chats.forEach((c) => listContainer.appendChild(buildChatRow(c)));
+      chats.forEach((chat) => listContainer.appendChild(buildChatRow(chat)));
     }
     renderList("");
     searchInput.addEventListener("input", () => renderList(searchInput.value));
@@ -25248,7 +25258,7 @@ ${suffix}`;
         btn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const name = anchor.innerText?.trim() || anchor.textContent?.trim() || "Chat";
+          const name = collapseText(anchor.innerText) || collapseText(anchor.textContent) || "Chat";
           const url = normalizeUrl(anchor.href || "");
           addBookmark(name, url, config.name);
           btn.innerHTML = "";
