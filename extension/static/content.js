@@ -22648,7 +22648,7 @@ ${suffix}`;
       </div>
       <div style="position:relative;margin-bottom:12px;">
         <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:${theme.textSecondary};pointer-events:none;display:flex;">${lucide_icons_default.get("search", 13)}</span>
-        <input type="search" id="sidebar-folder-search" placeholder="Cerca cartelle..." style="width:100%;box-sizing:border-box;padding:9px 12px 9px 33px;border-radius:10px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:12px;outline:none;transition:border-color 0.2s ease;">
+        <input type="search" id="sidebar-folder-search" placeholder="Cerca cartelle o chat…" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 33px;border-radius:10px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:12px;outline:none;transition:border-color 0.2s ease;">
       </div>
       <div id="sidebar-folders-list"></div>
     </div>
@@ -22674,7 +22674,8 @@ ${suffix}`;
     const q = (folderSearchQuery || "").trim();
     const tree = q ? filterFolderTreeByQuery(folders, q) : folders;
     if (tree.length === 0 && q) {
-      list.innerHTML = `<div style="text-align:center;padding:32px 16px;"><span style="color:${currentTheme.textSecondary};font-size:13px;">Nessun risultato per "${escapeHtml(q)}"</span></div>`;
+      list.innerHTML = `<div style="text-align:center;padding:32px 16px;"><span style="color:${currentTheme.textSecondary};font-size:13px;">Nessuna cartella per "${escapeHtml(q)}"</span></div>`;
+      appendGlobalSearchResults(list, q);
       return;
     }
     if (tree.length === 0) {
@@ -22694,6 +22695,7 @@ ${suffix}`;
     tree.forEach((folder) => {
       list.appendChild(createFolderElement(folder, list, 0));
     });
+    appendGlobalSearchResults(list, q);
   }
   function isEmojiString(str) {
     return /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/.test(str);
@@ -25346,6 +25348,197 @@ ${suffix}`;
     const query = inPageInput ? inPageInput.value : "";
     renderInPageFoldersList(query);
   }
+  // ─── Ricerca globale ────────────────────────────────────────────────────────
+  // Oltre alle cartelle, con una query non vuota la ricerca trova anche le chat
+  // presenti nella sidebar del chatbot corrente e i bookmark, con azione rapida
+  // "aggiungi a una cartella" diretta dal risultato.
+  var GLOBAL_SEARCH_RESULTS_LIMIT = 20;
+  function collectPageChatsForSearch() {
+    const spec = BOOKMARK_HOST_SPECS[window.location.hostname];
+    if (!spec) return [];
+    const config = getPlatformConfig();
+    const platformName = config?.name || "Chat";
+    const anchors = collectBookmarkAnchors(spec.anchorSelectors).filter((a) => {
+      try {
+        return spec.hrefTest(a.href || "");
+      } catch {
+        return false;
+      }
+    });
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const a of anchors) {
+      const url = normalizeUrl(a.href || "");
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({ name: collapseText(a.innerText) || "Chat", url, platform: platformName });
+    }
+    return out;
+  }
+  function collectFolderChatUrlSet() {
+    const out = /* @__PURE__ */ new Set();
+    (function walk(nodes) {
+      for (const f of nodes || []) {
+        for (const c of f.chats || []) out.add(normalizeUrl(c.url || ""));
+        if (f.subfolders) walk(f.subfolders);
+      }
+    })(folders);
+    return out;
+  }
+  function addChatUrlToFolder(folderId, chat) {
+    const target = findFolderById(folders, folderId);
+    if (!target) return false;
+    target.chats = target.chats || [];
+    if (target.chats.some((c) => normalizeUrl(c.url || "") === chat.url)) return true;
+    chrome.storage.local.get(["infolders_premium"], (r) => {
+      if (!canAddAnotherChat(r.infolders_premium, folders, 1)) {
+        showToast(`Limite ${FREE_CHAT_LIMIT} chat raggiunto. Attiva Pro.`, "warning");
+        return;
+      }
+      target.chats.push({ name: chat.name, url: chat.url, platform: chat.platform });
+      target.updatedAt = nowIso();
+      saveFolders();
+      refreshAllFolderViews();
+      showToast(`"${(chat.name || "").slice(0, 40)}" aggiunta a "${target.name}"`, "success");
+    });
+    return true;
+  }
+  function showGlobalAddToFolderMenu(anchorRow, chat) {
+    const theme = currentTheme;
+    const options = [];
+    (function walk(nodes, depth) {
+      for (const f of nodes || []) {
+        options.push({ id: f.id, name: f.name, depth });
+        if (f.subfolders) walk(f.subfolders, depth + 1);
+      }
+    })(folders, 0);
+    if (!options.length) {
+      showToast("Crea prima una cartella, poi potrai aggiungere la chat.", "info", 4e3);
+      return;
+    }
+    const existingMenu = document.getElementById("infolders-global-folders-menu");
+    if (existingMenu) existingMenu.remove();
+    const menu = document.createElement("div");
+    menu.id = "infolders-global-folders-menu";
+    Object.assign(menu.style, {
+      position: "absolute",
+      top: "100%",
+      left: "10px",
+      right: "10px",
+      marginTop: "4px",
+      background: theme.bg || "#0a0a0a",
+      border: `1px solid ${theme.border}`,
+      borderRadius: "10px",
+      boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+      padding: "6px",
+      zIndex: "10",
+      maxHeight: "220px",
+      overflowY: "auto",
+      textAlign: "left"
+    });
+    const title = document.createElement("div");
+    title.textContent = "Aggiungi a una cartella";
+    Object.assign(title.style, { fontSize: "10px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase", color: theme.textSecondary, padding: "4px 8px 6px" });
+    menu.appendChild(title);
+    options.forEach((opt) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.style.cssText = `display:flex;align-items:center;gap:7px;width:100%;padding:7px 8px;border:none;border-radius:7px;background:transparent;color:${theme.textPrimary};font-size:12px;cursor:pointer;text-align:left;transition:background 0.15s ease;`;
+      item.innerHTML = `${lucide_icons_default.get("folder", 13)}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${opt.depth ? `padding-left:${opt.depth * 10}px;` : ""}">${escapeHtml(opt.name)}</span>`;
+      item.addEventListener("mouseenter", () => item.style.background = theme.surfaceHover);
+      item.addEventListener("mouseleave", () => item.style.background = "transparent");
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        addChatUrlToFolder(opt.id, chat);
+        menu.remove();
+      });
+      menu.appendChild(item);
+    });
+    anchorRow.appendChild(menu);
+    const closeOnOutside = (e) => {
+      if (menu.contains(e.target)) return;
+      menu.remove();
+      document.removeEventListener("mousedown", closeOnOutside, true);
+    };
+    setTimeout(() => document.addEventListener("mousedown", closeOnOutside, true), 0);
+  }
+  function appendGlobalSearchResults(list, query) {
+    const q = normalizeSearchText(query);
+    if (!q || !list) return;
+    const theme = currentTheme;
+    const inFolderUrls = collectFolderChatUrlSet();
+    const pageChats = collectPageChatsForSearch().filter((c) => normalizeSearchText(c.name).includes(q) && !inFolderUrls.has(c.url));
+    const bookmarkMatches = (bookmarks || []).filter((b) => normalizeSearchText(b.name).includes(q) || normalizeSearchText(b.platform || "").includes(q));
+    if (pageChats.length === 0 && bookmarkMatches.length === 0) return;
+    const sectionHeader = (label) => {
+      const head = document.createElement("div");
+      head.textContent = label;
+      Object.assign(head.style, { color: theme.textSecondary, fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", fontWeight: "600", margin: "12px 2px 6px" });
+      list.appendChild(head);
+    };
+    const chatRow = (chat, opts) => {
+      const row = document.createElement("div");
+      row.style.cssText = `position:relative;display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;border-radius:9px;border:1px solid ${theme.border};background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.15s ease;`;
+      row.addEventListener("mouseenter", () => {
+        row.style.background = theme.surfaceHover;
+        row.style.borderColor = `${theme.appAccent}55`;
+      });
+      row.addEventListener("mouseleave", () => {
+        row.style.background = "rgba(255,255,255,0.03)";
+        row.style.borderColor = theme.border;
+      });
+      const info = document.createElement("div");
+      info.style.cssText = "flex:1;min-width:0;";
+      const nameEl = document.createElement("div");
+      nameEl.textContent = collapseText(chat.name) || "Chat";
+      nameEl.style.cssText = `font-size:12px;font-weight:500;color:${theme.textPrimary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+      const meta = document.createElement("div");
+      meta.style.cssText = `font-size:10px;color:${theme.textSecondary};display:flex;align-items:center;gap:4px;margin-top:1px;`;
+      meta.innerHTML = `<span style="display:flex;">${lucide_icons_default.get("message-circle", 9)}</span>${escapeHtml(chat.platform || "Chat")}${opts.badge ? `<span style="margin-left:4px;color:${theme.appAccent};">${escapeHtml(opts.badge)}</span>` : ""}`;
+      info.appendChild(nameEl);
+      info.appendChild(meta);
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.title = "Aggiungi a una cartella";
+      addBtn.innerHTML = lucide_icons_default.get("folder-plus", 13);
+      Object.assign(addBtn.style, {
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: "0", width: "26px", height: "26px",
+        background: "transparent", border: `1px solid ${theme.border}55`, borderRadius: "7px",
+        color: theme.appAccent, cursor: "pointer", transition: "all 0.15s ease"
+      });
+      addBtn.addEventListener("mouseenter", () => {
+        addBtn.style.background = theme.surfaceHover;
+        addBtn.style.borderColor = theme.appAccent;
+      });
+      addBtn.addEventListener("mouseleave", () => {
+        addBtn.style.background = "transparent";
+        addBtn.style.borderColor = `${theme.border}55`;
+      });
+      addBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const alreadyOpen = document.getElementById("infolders-global-folders-menu");
+        if (alreadyOpen) alreadyOpen.remove();
+        else showGlobalAddToFolderMenu(row, chat);
+      });
+      row.appendChild(info);
+      row.appendChild(addBtn);
+      row.addEventListener("click", () => openChat(chat.url));
+      return row;
+    };
+    if (bookmarkMatches.length > 0) {
+      sectionHeader(`Bookmark (${bookmarkMatches.length > GLOBAL_SEARCH_RESULTS_LIMIT ? GLOBAL_SEARCH_RESULTS_LIMIT + "+" : bookmarkMatches.length})`);
+      bookmarkMatches.slice(0, GLOBAL_SEARCH_RESULTS_LIMIT).forEach((b) => {
+        list.appendChild(chatRow(b, { badge: null }));
+      });
+    }
+    if (pageChats.length > 0) {
+      sectionHeader(`Chat della pagina (${pageChats.length > GLOBAL_SEARCH_RESULTS_LIMIT ? GLOBAL_SEARCH_RESULTS_LIMIT + "+" : pageChats.length})`);
+      pageChats.slice(0, GLOBAL_SEARCH_RESULTS_LIMIT).forEach((c) => {
+        list.appendChild(chatRow(c, { badge: null }));
+      });
+    }
+  }
   function renderInPageFoldersList(query) {
     const list = document.getElementById("infolders-inpage-folders-list");
     if (!list) return;
@@ -25353,12 +25546,14 @@ ${suffix}`;
     const q = (query || "").trim();
     const tree = q ? filterFolderTreeByQuery(folders, q) : folders;
     if (tree.length === 0 && q) {
-      list.innerHTML = `<div style="text-align:center;padding:16px 8px;"><span style="color:${currentTheme.textSecondary};font-size:12px;">Nessun risultato</span></div>`;
+      list.innerHTML = `<div style="text-align:center;padding:16px 8px;"><span style="color:${currentTheme.textSecondary};font-size:12px;">Nessuna cartella per "${escapeHtml(q)}"</span></div>`;
+      appendGlobalSearchResults(list, q);
       return;
     }
     tree.forEach((folder) => {
       list.appendChild(createFolderElement(folder, list, 0));
     });
+    appendGlobalSearchResults(list, q);
   }
   function injectInPageFoldersSection() {
     try {
@@ -25470,7 +25665,7 @@ ${suffix}`;
       });
       const searchInput = document.createElement("input");
       searchInput.type = "search";
-      searchInput.placeholder = "Cerca cartelle...";
+      searchInput.placeholder = "Cerca cartelle o chat…";
       Object.assign(searchInput.style, {
         width: "100%",
         boxSizing: "border-box",
