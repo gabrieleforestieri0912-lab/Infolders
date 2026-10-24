@@ -1,6 +1,9 @@
 # Changelog
 
-## 1.2.0 — in sviluppo
+## 1.2.0 - in sviluppo
+
+- Estensione: fix posizionamento della sezione cartelle in-page su Claude - l'input di ricerca finiva in mezzo all'elenco chat perché la prima anchor in ordine di documento poteva vivere in un contenitore separato (chat corrente fissata, sezioni); ora le righe chat vengono raggruppate per contenitore e la sezione si innesta sopra la prima riga del contenitore con più chat (l'elenco vero e proprio), su tutte le piattaforme.
+- Estensione: popup prezzi Premium sulle pagine dei chatbot allineato alla landing - stessa sottocopertina ("Inizia gratis, passa al Pro quando sei pronto. Abbonamento mensile, disdici quando vuoi."), tagline del piano in ogni card, prezzo reso come nella landing ("€9,99" + "/mese" invece di "9,99€") e nota finale "Pagamento sicuro tramite Stripe". I valori erano già unificati con il sito (Free €0/per sempre, Pro €9,99/mese, Team €29,99/mese).
 
 - Estensione: su Gemini la rilevazione delle pagine di chat esclude ora le rotte di sezione (`/app/gems`, `/app/library`, `/app/collections`, `/app/settings`, ecc.) — la UI compare solo su `/app` e sulle conversazioni `/app/<id>` (id lunghi, mai parole di sezione), sia per il gate della pagina sia per il filtro dei pulsanti bookmark nella sidebar.
 - Estensione: l'interfaccia (pulsanti flottanti, sidebar, pulsanti bookmark e sezione cartelle in-page) compare ora **solo sulle pagine di chat** di ChatGPT (`/c/`), Claude (`/new`, `/chat/`), Gemini (`/app/`) e Perplexity (`/search/`, `/thread/`, `/library/`) — su tutte le altre pagine (home, progetti, impostazioni, ecc.) non viene iniettato nulla, anche navigando dentro le SPA senza ricaricare la pagina (la UI viene rimossa/ricreata al cambio di URL).

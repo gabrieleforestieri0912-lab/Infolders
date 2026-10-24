@@ -24974,16 +24974,17 @@ ${suffix}`;
       }).join("");
       const btnStyle = isPro ? `width: 100%; background: linear-gradient(135deg, ${theme.appAccent}, ${theme.primary || theme.appAccent}); border: none; color: white; padding: 12px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px ${theme.appAccent}33;` : `width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: ${theme.textSecondary}; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px;`;
       const btnLabel = plan.id === "free" ? "Piano attuale" : plan.ctaLabel;
-      return `<div class="pricing-card" style="background: ${cardBg}; border: ${borderStyle}; border-radius: 14px; padding: 20px; text-align: left; position: relative; box-shadow: ${cardShadow};">${badgeHtml}<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><h3 style="color: ${theme.textPrimary}; margin: 0; font-size: 17px; font-weight: 700;">${plan.name}</h3><div style="font-size: 20px; font-weight: 600; color: #fff;"><span style="font-size:28px;color:#fff;">${plan.price.replace("\u20AC", "")}</span>\u20AC<span style="font-size:12px;color:#fff;font-weight:400;">/${plan.priceNote}</span></div></div><ul style="list-style: none; padding: 0; margin: 0 0 18px 0; font-size: 13px; line-height: 1.8; display:flex; flex-direction:column; gap:6px;">${featuresListHtml}</ul><button class="pricing-btn" data-plan="${plan.id}" style="${btnStyle}">${btnLabel}</button></div>`;
+      return `<div class="pricing-card" style="background: ${cardBg}; border: ${borderStyle}; border-radius: 14px; padding: 20px; text-align: left; position: relative; box-shadow: ${cardShadow};">${badgeHtml}<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;"><div style="min-width:0;"><h3 style="color: ${theme.textPrimary}; margin: 0; font-size: 17px; font-weight: 700;">${plan.name}</h3><p style="margin: 2px 0 0; font-size: 11px; color: ${theme.textSecondary};">${plan.tagline}</p></div><div style="font-size: 20px; font-weight: 600; color: #fff; flex-shrink: 0;"><span style="font-size:28px;color:#fff;">${plan.price}</span><span style="font-size:12px;color:#fff;font-weight:400;">/${plan.priceNote}</span></div></div><ul style="list-style: none; padding: 0; margin: 0 0 18px 0; font-size: 13px; line-height: 1.8; display:flex; flex-direction:column; gap:6px;">${featuresListHtml}</ul><button class="pricing-btn" data-plan="${plan.id}" style="${btnStyle}">${btnLabel}</button></div>`;
     }).join("");
     popup.innerHTML = `
     <div style="padding: 18px 24px 12px; flex-shrink: 0;">
       <div style="width:40px;height:40px;border-radius:12px;background:${theme.appAccent}22;border:1px solid ${theme.appAccent}44;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;color:${theme.appAccent};">${lucide_icons_default.get("crown", 20)}</div>
       <h2 style="color: white; margin: 0 0 2px; font-size: 18px; font-weight:700;">InFolders <span style="color:${theme.appAccent};">Premium</span></h2>
-      <p style="color: ${theme.textSecondary}; margin: 0; font-size: 13px;">Scegli il piano perfetto per te</p>
+      <p style="color: ${theme.textSecondary}; margin: 0; font-size: 13px;">Inizia gratis, passa al Pro quando sei pronto. Abbonamento mensile, disdici quando vuoi.</p>
     </div>
     <div id="infolders-premium-scroll-body" style="overflow-y: auto; padding: 0 32px 32px; flex: 1; display: flex; flex-direction: column; gap: 20px; color: white;">
       ${plansCardsHtml}
+      <p style="color: ${theme.textSecondary}; font-size: 11px; text-align: center; margin: 2px 0 0; line-height: 1.6;">Pagamento sicuro tramite Stripe. Abbonamento mensile, disdici quando vuoi.</p>
     </div>
   `;
     const closeBtn = document.createElement("button");
@@ -25193,6 +25194,14 @@ ${suffix}`;
     if (parent && parent !== sidebar && parent !== document.body) return parent;
     return sidebar;
   }
+  function findGeminiRowMenu(anchor) {
+    const sel = 'button[aria-haspopup], button[aria-label*="more" i], button[aria-label*="options" i], button[aria-label*="opzioni" i], button[aria-label*="op\xE7\xF5es" i], button[aria-label*="menu" i], button[aria-label*="altro" i], button[matMenuTriggerFor], [mat-menu-trigger], .mat-mdc-menu-trigger, [data-testid*="menu" i], [data-testid*="more" i], [data-testid*="options" i]';
+    const hit = anchor.querySelector(sel);
+    if (hit) return hit;
+    const btns = anchor.querySelectorAll("button, [role=button]");
+    if (btns.length) return btns[btns.length - 1];
+    return null;
+  }
   var _bookmarkBtnTimer = null;
   function injectBookmarkButtons() {
     try {
@@ -25269,11 +25278,20 @@ ${suffix}`;
             else pinBtn.parentElement.appendChild(wrap);
           }
         } else if (spec.anchorIsRow) {
-          // Gemini/Perplexity: niente pulsanti pin/overflow — appendi il bookmark in
-          // fondo alla riga (lato destro, allineato al testo), non davanti all'anchor.
-          wrap.style.marginLeft = "auto";
-          wrap.style.marginRight = "0";
-          anchor.appendChild(wrap);
+          // Gemini/Perplexity: la riga È l'anchor stessa. Su Gemini la riga ha i tre
+          // puntini (menu overflow) in fondo: il bookmark va inserito PRIMA di essi,
+          // non dopo, altrimenti si sovrappone al menu. Se non si trova alcun
+          // controllore finale (Perplexity non ne ha), si ripiega sull'append.
+          var isGeminiHost = /gemini\.google\.com/i.test(window.location.hostname);
+          var trailingMenu = isGeminiHost ? findGeminiRowMenu(anchor) : null;
+          if (trailingMenu) {
+            wrap.style.marginRight = "2px";
+            trailingMenu.parentElement.insertBefore(wrap, trailingMenu);
+          } else {
+            wrap.style.marginLeft = "auto";
+            wrap.style.marginRight = "0";
+            anchor.appendChild(wrap);
+          }
         } else {
           row.insertBefore(wrap, anchor);
         }
@@ -25358,14 +25376,42 @@ ${suffix}`;
         // partendo da spec.inSidebar() si risaliva fino al wrapper esterno e la
         // sezione finiva fuori dalla sidebar. Se il risultato avvolge l'intera
         // sidebar, si ripiega sul parent diretto dell'anchor.
-        const sidebarEl = spec.inSidebar(anchors[0]);
-        let row = anchors[0].closest("li, div") || anchors[0].parentElement;
-        if (row && sidebarEl && row.contains(sidebarEl)) {
-          row = anchors[0].parentElement;
+        //
+        // Claude: la prima chat in ordine di documento può stare in un contenitore
+        // separato (es. wrapper della conversazione corrente, sezioni "progetti"),
+        // quindi ancorarsi alla prima anchor innestava la sezione in mezzo all'elenco.
+        // Per ogni anchor calcoliamo la riga e raggruppiamo per contenitore: il
+        // contenitore con più righe è l'elenco chat vero e proprio, e lì si inserisce
+        // la sezione davanti alla PRIMA riga di quell'elenco.
+        const rowsByContainer = /* @__PURE__ */ new Map();
+        for (const a of anchors) {
+          try {
+            const sidebarEl = spec.inSidebar(a);
+            let row = a.closest("li, div") || a.parentElement;
+            if (row && sidebarEl && row.contains(sidebarEl)) {
+              row = a.parentElement;
+            }
+            if (!row || !row.parentElement) continue;
+            if (!rowsByContainer.has(row.parentElement)) rowsByContainer.set(row.parentElement, []);
+            rowsByContainer.get(row.parentElement).push(row);
+          } catch {
+          }
         }
-        if (row && row.parentElement) {
-          targetContainer = row.parentElement;
-          referenceElement = row;
+        let bestContainer = null;
+        let bestRows = null;
+        let bestCount = 0;
+        rowsByContainer.forEach((rows, container) => {
+          if (rows.length > bestCount) {
+            bestCount = rows.length;
+            bestContainer = container;
+            bestRows = rows;
+          }
+        });
+        if (bestContainer && bestRows) {
+          targetContainer = bestContainer;
+          const childList = Array.from(bestContainer.children);
+          const sorted = bestRows.slice().sort((x, y) => childList.indexOf(x) - childList.indexOf(y));
+          referenceElement = sorted[0] || null;
         }
       }
       if (!targetContainer) {
