@@ -21651,6 +21651,7 @@ ${suffix}`;
         folders: data.folders || [],
         bookmarks: data.bookmarks || [],
         folderIdCounter: data.folder_id_counter || 0,
+        prompts: Array.isArray(data.prompts) ? data.prompts : [],
         premiumData: data.premium_data,
         tombstones: Array.isArray(data.tombstones) ? data.tombstones : []
       };
@@ -21664,6 +21665,7 @@ ${suffix}`;
       folders: data.folders,
       bookmarks: data.bookmarks,
       folder_id_counter: data.folderIdCounter,
+      prompts: Array.isArray(data.prompts) ? data.prompts : [],
       premium_data: data.premiumData || null,
       tombstones: Array.isArray(data.tombstones) ? data.tombstones : [],
       updated_at: (/* @__PURE__ */ new Date()).toISOString()
@@ -21719,26 +21721,72 @@ ${suffix}`;
 
   // src/extension/lib/prompts.ts
   var STORAGE_KEY2 = "infolders_prompts";
+  // I prompt vivono in chrome.storage.local (multi-finestra) con cache in
+  // memoria; il localStorage è solo la chiave di migrazione legacy.
+  var promptsCache = [];
   function loadPrompts() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY2);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
+    return promptsCache;
+  }
+  function renderPromptsIfVisible() {
+    if (document.getElementById("prompts-list")) {
+      const content = document.getElementById("infolders-sidebar-content");
+      if (content) renderPromptsTab(content);
     }
   }
+  function setPromptsCache(list, persist) {
+    promptsCache = Array.isArray(list) ? list : [];
+    if (persist !== false && requireExtensionContext()) {
+      chrome.storage.local.set({ [STORAGE_KEY2]: promptsCache });
+    }
+    renderPromptsIfVisible();
+  }
   function savePrompts(list) {
-    localStorage.setItem(STORAGE_KEY2, JSON.stringify(list));
+    if (!currentUser) {
+      setPromptsCache(list);
+      return;
+    }
+    setPromptsCache(list);
+    queueCloudSync();
+  }
+  // Migrazione one-time: prompt del localStorage → chrome.storage.local.
+  // Unisce senza duplicati (per id) con eventuali prompt già migrati su altro device.
+  function migratePromptsFromLocalStorage() {
+    if (!requireExtensionContext()) return;
+    let legacy = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY2);
+      if (raw) legacy = JSON.parse(raw) || [];
+    } catch {
+      legacy = [];
+    }
+    if (!Array.isArray(legacy)) legacy = [];
+    chrome.storage.local.get([STORAGE_KEY2], (res) => {
+      const current = Array.isArray(res && res[STORAGE_KEY2]) ? res[STORAGE_KEY2] : [];
+      const byId = new Map();
+      [...current, ...legacy].forEach((p) => {
+        if (p && p.id != null && !byId.has(p.id)) byId.set(p.id, p);
+      });
+      promptsCache = [...byId.values()];
+      if (legacy.length) {
+        try {
+          localStorage.removeItem(STORAGE_KEY2);
+        } catch {
+        }
+      }
+      renderPromptsIfVisible();
+      if (legacy.length && promptsCache.length) queueCloudSync();
+    });
   }
   function addPrompt(title, content, category) {
-    const prompts = loadPrompts();
-    const prompt = { id: Date.now(), title, content, category, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
-    prompts.unshift(prompt);
-    savePrompts(prompts);
+    const ts = nowIso();
+    const prompt = { id: Date.now(), title, content, category, createdAt: ts, updatedAt: ts };
+    savePrompts([prompt, ...promptsCache]);
     return prompt;
   }
   function deletePrompt(id) {
-    savePrompts(loadPrompts().filter((p) => p.id !== id));
+    const prompt = promptsCache.find((p) => p && p.id === id);
+    if (prompt) recordTombstone("prompt", prompt.id);
+    savePrompts(promptsCache.filter((p) => p.id !== id));
   }
   function filterPrompts(query, category) {
     const q = query.toLowerCase().trim();
@@ -22109,6 +22157,7 @@ ${suffix}`;
       if (!config) return;
       currentTheme = config.theme;
       currentPlatform = config;
+      migratePromptsFromLocalStorage();
       initLanguage(() => {
         syncUiWithPage();
         loadUserAndBookmarks();
@@ -24037,11 +24086,12 @@ ${suffix}`;
       return;
     }
     const merged = mergeCloudData(
-      { folders, bookmarks, folderIdCounter, tombstones: syncTombstones },
+      { folders, bookmarks, folderIdCounter, prompts: promptsCache, tombstones: syncTombstones },
       {
         folders: (data && data.folders) || [],
         bookmarks: (data && data.bookmarks) || [],
         folderIdCounter: (data && data.folderIdCounter) || 0,
+        prompts: (data && data.prompts) || [],
         tombstones: (data && data.tombstones) || []
       }
     );
@@ -24049,10 +24099,13 @@ ${suffix}`;
     bookmarks = merged.bookmarks;
     folderIdCounter = merged.folderIdCounter;
     syncTombstones = merged.tombstones;
+    promptsCache = merged.prompts;
+    renderPromptsIfVisible();
     chrome.storage.local.set({
       [`folders_${currentUser.id}`]: folders,
       [`folderIdCounter_${currentUser.id}`]: folderIdCounter,
       infolders_bookmarks: bookmarks,
+      [STORAGE_KEY2]: promptsCache,
       [tombstoneStorageKey()]: syncTombstones
     });
     buildFolderUrlMap();
@@ -24775,6 +24828,44 @@ ${suffix}`;
     });
     return { bookmarks: out, deletedIds: deleted };
   }
+  function mergePromptLists(local, cloud, tombMap, now) {
+    const localMap = new Map();
+    const cloudMap = new Map();
+    (local || []).forEach((p) => {
+      if (p && p.id != null) localMap.set(p.id, p);
+    });
+    (cloud || []).forEach((p) => {
+      if (p && p.id != null) cloudMap.set(p.id, p);
+    });
+    const ids = [];
+    const seen = {};
+    [...localMap.keys(), ...cloudMap.keys()].forEach((id) => {
+      if (!seen[id]) {
+        seen[id] = 1;
+        ids.push(id);
+      }
+    });
+    const out = [];
+    const deleted = new Set();
+    ids.forEach((id) => {
+      const l = localMap.get(id);
+      const c = cloudMap.get(id);
+      const lts = l ? typeof l.updatedAt === "string" ? l.updatedAt : l.createdAt || "" : "";
+      const cts = c ? typeof c.updatedAt === "string" ? c.updatedAt : c.createdAt || "" : "";
+      const editedAt = maxTs(lts, cts);
+      const tomb = tombMap.get("prompt__" + id);
+      if (tomb) {
+        const anyAfter = (lts && lts > tomb.deletedAt) || (cts && cts > tomb.deletedAt);
+        if (!anyAfter) {
+          deleted.add(id);
+          return;
+        }
+      }
+      const winner = !c ? l : !l ? c : cts > lts ? c : l;
+      out.push(Object.assign({}, winner, { updatedAt: editedAt || now }));
+    });
+    return { prompts: out, deletedIds: deleted };
+  }
   function mergeCloudData(local, cloud, now) {
     now = now || nowIso();
     const tombList = [];
@@ -24791,6 +24882,7 @@ ${suffix}`;
     ((local && local.tombstones) || []).forEach(addTomb);
     const folderMerge = mergeFolderTrees((local && local.folders) || [], (cloud && cloud.folders) || [], tombMap, now);
     const bookmarkMerge = mergeBookmarks((local && local.bookmarks) || [], (cloud && cloud.bookmarks) || [], tombMap, now);
+    const promptMerge = mergePromptLists((local && local.prompts) || [], (cloud && cloud.prompts) || [], tombMap, now);
     // Il tombstone sopravvive finche' l'item NON e' vivo nel risultato del merge
     // (serve anche a coprire dispositivi rimasti offline a lungo: senza tombstone
     // un item eliminato tornerebbe a vivere al loro primo sync). Se l'item e'
@@ -24800,15 +24892,19 @@ ${suffix}`;
     bookmarkMerge.bookmarks.forEach((b) => {
       if (b && b.id != null) aliveKeys.add("bookmark__" + b.id);
     });
+    promptMerge.prompts.forEach((p) => {
+      if (p && p.id != null) aliveKeys.add("prompt__" + p.id);
+    });
     const survivors = tombList.filter((t) => !aliveKeys.has((t.kind || "folder") + "__" + t.id));
     return {
       folders: folderMerge.folders,
       bookmarks: bookmarkMerge.bookmarks,
+      prompts: promptMerge.prompts,
       folderIdCounter: Math.max((local && local.folderIdCounter) || 0, (cloud && cloud.folderIdCounter) || 0),
       tombstones: survivors
     };
   }
-  var __INFOLDERS_MERGE__ = { mergeCloudData, mergeFolderTrees, mergeBookmarks, collectFolderIds, nowIso, maxTs };
+  var __INFOLDERS_MERGE__ = { mergeCloudData, mergeFolderTrees, mergeBookmarks, mergePromptLists, collectFolderIds, nowIso, maxTs };
   /* __INFOLDERS_MERGE_END__ */
   function recordTombstone(kind, ids, at) {
     const ts = at || nowIso();
@@ -24830,6 +24926,7 @@ ${suffix}`;
       folders,
       bookmarks,
       folderIdCounter,
+      prompts: promptsCache,
       premiumData: infoldersPremium,
       tombstones: syncTombstones
     }).catch((err) => {
@@ -25402,6 +25499,9 @@ ${suffix}`;
           const container = document.getElementById("infolders-sidebar-content");
           if (container) renderBookmarksList(container);
         }
+      }
+      if (changes.infolders_prompts) {
+        setPromptsCache(changes.infolders_prompts.newValue || [], false);
       }
       if (changes.infolders_premium) {
         infoldersPremium = changes.infolders_premium.newValue || null;
