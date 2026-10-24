@@ -21815,6 +21815,131 @@ ${suffix}`;
       return false;
     }
   }
+  // ─── Segnaposto {{variabile}} ───────────────────────────────────────────────
+  // Un prompt può contenere {{nome}}: prima dell'uso viene mostrato un form
+  // che chiede ogni variabile e il testo finale viene scritto nel campo di
+  // input della piattaforma (inputSelectors dell'adapter).
+  var PROMPT_VAR_PATTERN = /\{\{\s*([a-zA-Z_][a-zA-Z0-9 _-]*?)\s*\}\}/g;
+  function extractPromptVariables(text) {
+    const out = [];
+    const seen = new Set();
+    String(text || "").replace(PROMPT_VAR_PATTERN, (_m, name) => {
+      const n = String(name).trim();
+      if (n && !seen.has(n)) {
+        seen.add(n);
+        out.push(n);
+      }
+      return _m;
+    });
+    return out;
+  }
+  function applyPromptVariables(text, values) {
+    return String(text || "").replace(PROMPT_VAR_PATTERN, (_m, name) => {
+      const v = values && values[String(name).trim()];
+      return v == null ? "" : String(v);
+    });
+  }
+  function findChatInput(spec) {
+    const selectors = (spec && spec.inputSelectors) || ["textarea", 'div[contenteditable="true"]'];
+    for (const sel of selectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (!el) continue;
+        const style = window.getComputedStyle(el);
+        if (style.display !== "none" && style.visibility !== "hidden" && el.offsetWidth + el.offsetHeight > 0) {
+          return el;
+        }
+      } catch {
+      }
+    }
+    return null;
+  }
+  function insertPromptTextIntoInput(el, text) {
+    try {
+      el.focus();
+      if (el.isContentEditable) {
+        const ok = document.execCommand("insertText", false, text);
+        if (!ok) throw new Error("insertText non supportato");
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      }
+      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+        el.value = text;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      }
+      el.textContent = text;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function finalizePromptUsage(finalText) {
+    const spec = getBookmarkHostSpec();
+    const input = spec ? findChatInput(spec) : null;
+    if (input && insertPromptTextIntoInput(input, finalText)) {
+      showToast("Prompt inserito nel campo di input", "success");
+      return;
+    }
+    copyToClipboard(finalText);
+    showToast("Prompt copiato negli appunti (campo di input non trovato)", "info", 3500);
+  }
+  function showPromptVariablesDialog(prompt, variables, onCompose) {
+    const theme = currentTheme;
+    const overlay = document.createElement("div");
+    Object.assign(overlay.style, {
+      position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
+      background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)",
+      zIndex: "2147483647", display: "flex", alignItems: "center", justifyContent: "center"
+    });
+    const modal = document.createElement("div");
+    Object.assign(modal.style, {
+      background: theme.bg, border: `1px solid ${theme.glassBorder}`, borderRadius: "16px",
+      padding: "24px", width: "90%", maxWidth: "420px", color: "white"
+    });
+    const fields = variables.map((v, i) => (
+      `<input data-promptvar="${escapeHtml(v)}" placeholder="${escapeHtml(v)}" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:13px;margin-bottom:10px;outline:none;">`
+    )).join("");
+    modal.innerHTML = `
+    <h3 style="margin:0 0 6px;font-size:16px;">Completa il prompt</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:${theme.textSecondary};">Il prompt "${escapeHtml(prompt.title || "")}" contiene ${variables.length} variabile${variables.length === 1 ? "e" : "i"}. Compila i campi e invia.</p>
+    ${fields}
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="promptvar-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">Annulla</button>
+      <button id="promptvar-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Usa nel campo di input</button>
+    </div>
+  `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const first = modal.querySelector("[data-promptvar]");
+    if (first) first.focus();
+    modal.querySelector("#promptvar-cancel").addEventListener("click", () => overlay.remove());
+    modal.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target && e.target.hasAttribute && e.target.hasAttribute("data-promptvar")) {
+        e.preventDefault();
+        modal.querySelector("#promptvar-save").click();
+      }
+    });
+    modal.querySelector("#promptvar-save").addEventListener("click", () => {
+      const values = {};
+      modal.querySelectorAll("[data-promptvar]").forEach((el) => {
+        values[el.getAttribute("data-promptvar")] = el.value;
+      });
+      overlay.remove();
+      onCompose(values);
+    });
+  }
+  function usePrompt(prompt) {
+    const variables = extractPromptVariables(prompt.content);
+    if (!variables.length) {
+      finalizePromptUsage(prompt.content);
+      return;
+    }
+    showPromptVariablesDialog(prompt, variables, (values) => {
+      finalizePromptUsage(applyPromptVariables(prompt.content, values));
+    });
+  }
 
   // src/extension/lib/instruction-profiles.ts
   var STORAGE_KEY3 = "infolders_profiles";
@@ -24248,10 +24373,15 @@ ${suffix}`;
       </div>
       <p style="color:${theme.textSecondary};font-size:11px;margin:0 0 10px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.content.substring(0, 140))}</p>
       <div style="display:flex;gap:6px;">
-        <button class="prompt-copy" data-id="${p.id}" style="flex:1;background:${theme.appAccent};border:none;color:white;padding:7px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.15s ease;">${lucide_icons_default.get("clipboard", 12)} Copia</button>
+        <button class="prompt-use" data-id="${p.id}" style="flex:1;background:${theme.appAccent};border:none;color:white;padding:7px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.15s ease;">${lucide_icons_default.get("message-square-plus", 12)} Usa</button>
+        <button class="prompt-copy" data-id="${p.id}" title="Copia negli appunti" style="background:transparent;border:1px solid ${theme.border};color:${theme.textPrimary};padding:7px 9px;border-radius:8px;cursor:pointer;display:flex;align-items:center;transition:all 0.15s ease;">${lucide_icons_default.get("clipboard", 12)}</button>
         <button class="prompt-delete" data-id="${p.id}" style="background:transparent;border:1px solid rgba(239,68,68,0.25);color:rgba(239,68,68,0.7);padding:7px 9px;border-radius:8px;cursor:pointer;display:flex;align-items:center;transition:all 0.15s ease;">${lucide_icons_default.get("trash2", 12)}</button>
       </div>
     `;
+      card.querySelector(".prompt-use").addEventListener("click", () => {
+        const found = promptsCache.find((x) => x && x.id === p.id);
+        if (found) usePrompt(found);
+      });
       card.querySelector(".prompt-copy").addEventListener("click", () => {
         copyToClipboard(p.content);
         showToast("Prompt copiato negli appunti!", "success");
