@@ -22444,7 +22444,9 @@ ${suffix}`;
       currentPlatform = config;
       migratePromptsFromLocalStorage();
       loadRecentCache();
+      loadFullTextCache();
       setupRecentChatTracking();
+      attachInfoldersKeyGuard();
       checkPendingTransfer();
       initLanguage(() => {
         syncUiWithPage();
@@ -22831,6 +22833,37 @@ ${suffix}`;
   if (!window.__infoldersPromptTriggerAttached) {
     window.__infoldersPromptTriggerAttached = true;
     attachPromptTriggerListener();
+  }
+  // ─── Guard tastiera per i campi dell'estensione ────────────────────────────
+  // ChatGPT/Claude agganciano handler globali di keydown che dirottano i tasti
+  // (es. "/" apre la loro ricerca nativa) e tolgono il focus ai campi
+  // dell'estensione: il campo di ricerca della sidebar "non funziona". Guard in
+  // capture su window: gli eventi nati in un controllo dell'estensione
+  // vengono stoppati prima che la piattaforma li veda (Escape escluso, serve
+  // alla UI stessa dell'estensione).
+  var _infoldersKeyGuardAttached = false;
+  function isInfoldersFormTarget(el) {
+    if (!el) return false;
+    try {
+      if (el.closest && (el.closest("#infolders-sidebar") || el.closest("#infolders-inpage-folders-section") || el.closest("#" + PROMPT_TRIGGER_POPUP_ID))) return true;
+    } catch {
+      return false;
+    }
+    const cls = typeof el.className === "string" ? el.className : "";
+    if (cls && /(^|\s)infolders-/.test(cls)) return true;
+    return false;
+  }
+  function attachInfoldersKeyGuard() {
+    if (_infoldersKeyGuardAttached || !requireExtensionContext()) return;
+    _infoldersKeyGuardAttached = true;
+    const stopIfOurs = (e) => {
+      if (!isInfoldersFormTarget(e.target)) return;
+      if (e.key === "Escape") return;
+      e.stopPropagation();
+    };
+    ["keydown", "keyup", "keypress"].forEach((type) => {
+      window.addEventListener(type, stopIfOurs, true);
+    });
   }
   function rebuildTabBar() {
     const tabsContainer = document.querySelector("[data-tab-bar]");
@@ -23437,7 +23470,13 @@ ${suffix}`;
   function trackRecentChatVisit() {
     if (!isChatUrl()) return;
     const details = getCurrentChatDetails();
-    if (details && details.url) recordRecentChatVisit(details);
+    if (details && details.url) {
+      recordRecentChatVisit(details);
+      archiveCurrentConversation();
+      // Seconda passata: tra i 5s la piattaforma ha di solito finito di
+      // caricare i messaggi della conversazione in SPA.
+      setTimeout(archiveCurrentConversation, 5000);
+    }
   }
   function setupRecentChatTracking() {
     if (!requireExtensionContext()) return;
@@ -24689,6 +24728,228 @@ ${suffix}`;
         return;
       }
       showTransferPendingBanner(payload);
+    });
+  }
+  // ─── Ricerca full-text (archivio locale, non sincronizzato) ────────────────
+  // Mentre l'utente visita le chat si archivia il testo dei messaggi (estratto
+  // con extractCurrentConversation) su chrome.storage.local: max 20 chat, testo
+  // normalizzato (minuscolo, spazi collassati). La ricerca globale nella sidebar
+  // cerca anche dentro questo archivio e mostra snippet con evidenza. Tutto
+  // resta sul device: privacy-coerente, nessun upload.
+  var FULLTEXT_STORAGE_KEY = "infolders_fulltext";
+  var FULLTEXT_MAX_CHATS = 20;
+  var FULLTEXT_MAX_CHAT_CHARS = 100000;
+  var fullTextPlatformFilter = "all";
+  var fulltextCache = [];
+  function loadFullTextCache() {
+    if (!requireExtensionContext()) return;
+    chrome.storage.local.get([FULLTEXT_STORAGE_KEY], (res) => {
+      const list = res && res[FULLTEXT_STORAGE_KEY];
+      fulltextCache = Array.isArray(list) ? list : [];
+      renderFullTextIfVisible();
+    });
+  }
+  function persistFullTextCache() {
+    if (requireExtensionContext()) {
+      chrome.storage.local.set({ [FULLTEXT_STORAGE_KEY]: fulltextCache });
+    }
+  }
+  function archiveCountsMessages(trimmed) {
+    let total = 0;
+    trimmed.forEach((m) => {
+      total += (m.text || "").length;
+    });
+    return total;
+  }
+  function archiveCurrentConversation() {
+    if (!isChatUrl()) return;
+    const spec = getBookmarkHostSpec();
+    if (!spec) return;
+    const details = getCurrentChatDetails();
+    if (!details || !details.url) return;
+    const messages = extractCurrentConversation(spec);
+    if (!messages.length) return;
+    const trimmed = [];
+    for (const m of messages) {
+      const text = normalizeSearchText(m.text).slice(0, FULLTEXT_MAX_CHAT_CHARS);
+      if (!text) continue;
+      trimmed.push({ role: m.role, text });
+      if (archiveCountsMessages(trimmed) > FULLTEXT_MAX_CHAT_CHARS) {
+        trimmed.pop();
+        break;
+      }
+    }
+    if (!trimmed.length) return;
+    const url = normalizeUrl(details.url);
+    const ts = nowIso();
+    const idx = fulltextCache.findIndex((e) => normalizeUrl(e.url || "") === url);
+    const existing = idx >= 0 ? fulltextCache[idx] : null;
+    if (existing && (existing.messages || []).length >= trimmed.length) {
+      // L'archivio ha già più contenuto per questa chat: aggiorna solo nome/visita.
+      existing.name = details.name || existing.name;
+      existing.lastVisitedAt = ts;
+    } else {
+      if (idx >= 0) fulltextCache.splice(idx, 1);
+      fulltextCache.unshift({
+        url,
+        name: details.name || "Chat",
+        platform: details.platform || "Generico",
+        messages: trimmed,
+        lastVisitedAt: ts
+      });
+    }
+    if (fulltextCache.length > FULLTEXT_MAX_CHATS) fulltextCache.length = FULLTEXT_MAX_CHATS;
+    persistFullTextCache();
+    renderFullTextIfVisible();
+  }
+  function searchFullTextIndex(query, platformFilter) {
+    const q = normalizeSearchText(query);
+    if (!q || q.length < 2) return [];
+    const filter = platformFilter || fullTextPlatformFilter || "all";
+    const out = [];
+    for (const entry of fulltextCache) {
+      if (filter !== "all" && normalizeSearchText(entry.platform || "") !== normalizeSearchText(filter)) continue;
+      for (const message of (entry.messages || [])) {
+        const hay = normalizeSearchText(message.text);
+        let pos = hay.indexOf(q);
+        if (pos === -1) continue;
+        const start = Math.max(0, pos - 45);
+        const end = Math.min(hay.length, pos + q.length + 65);
+        out.push({
+          url: entry.url,
+          name: entry.name,
+          platform: entry.platform,
+          lastVisitedAt: entry.lastVisitedAt,
+          snippetStart: start,
+          snippetHitStart: pos - start,
+          snippetHitEnd: pos - start + q.length,
+          snippet: (start > 0 ? "…" : "") + hay.slice(start, end) + (end < hay.length ? "…" : "")
+        });
+        if (out.length >= 20) return out;
+      }
+    }
+    return out;
+  }
+  function fullTextPlatformBadges(results) {
+    const counts = /* @__PURE__ */ new Map();
+    results.forEach((r) => {
+      const p = r.platform || "Generico";
+      counts.set(p, (counts.get(p) || 0) + 1);
+    });
+    return [...counts.keys()];
+  }
+  function renderFullTextIfVisible() {
+    const container = document.getElementById("infolders-sidebar-content");
+    if (container) {
+      const searchEl = container.querySelector("#sidebar-folder-search");
+      const list = container.querySelector("#sidebar-folders-list");
+      if (searchEl && list && normalizeSearchText(searchEl.value)) {
+        renderFoldersList(container);
+        return;
+      }
+    }
+    const inPageList = document.getElementById("infolders-inpage-folders-list");
+    const inPageSection = document.getElementById("infolders-inpage-folders-section");
+    const inPageInput = inPageSection && inPageSection.querySelector("input[type=search]");
+    if (inPageList && inPageInput && normalizeSearchText(inPageInput.value)) {
+      renderInPageFoldersList(inPageInput.value);
+    }
+  }
+  function openFullTextResult(result) {
+    const q = normalizeSearchText(lastGlobalSearchQuery || "");
+    const isCurrent = normalizeUrl(result.url) === normalizeUrl(window.location.href);
+    if (isCurrent) {
+      const spec = getBookmarkHostSpec();
+      if (spec) {
+        const candidates = [];
+        spec.messageSelectors.forEach((sel) => {
+          try {
+            document.querySelectorAll(sel).forEach((el) => candidates.push(el));
+          } catch {
+          }
+        });
+        candidates.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+        const seen = [];
+        for (const el of candidates) {
+          if (seen.some((p) => p.contains(el))) continue;
+          seen.push(el);
+          const hay = normalizeSearchText(el.innerText != null ? el.innerText : el.textContent || "");
+          if (q && hay.includes(q)) {
+            try {
+              el.scrollIntoView({ block: "center", behavior: "smooth" });
+            } catch {
+              el.scrollIntoView();
+            }
+            const prev = el.style.boxShadow;
+            el.style.boxShadow = `inset 0 0 0 2px ${currentTheme.appAccent}`;
+            setTimeout(() => {
+              el.style.boxShadow = prev;
+            }, 1800);
+            return;
+          }
+        }
+      }
+    }
+    openChat(result.url);
+  }
+  var lastGlobalSearchQuery = "";
+  function renderFullTextResults(list, results) {
+    const theme = currentTheme;
+    const header = document.createElement("div");
+    header.style.cssText = `color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:12px 2px 6px;`;
+    header.textContent = `Nel testo delle chat (${results.length > 20 ? "20+" : results.length})`;
+    list.appendChild(header);
+    // Filtro piattaforma: badge cliccabili costruite dai risultati trovati.
+    const platforms = fullTextPlatformBadges(results);
+    if (platforms.length > 1) {
+      const filters = document.createElement("div");
+      filters.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;margin:0 2px 6px;";
+      ["all", ...platforms].forEach((p) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.textContent = p === "all" ? "Tutte" : p;
+        const active = (fullTextPlatformFilter || "all") === p;
+        chip.style.cssText = `border:1px solid ${active ? theme.appAccent : theme.border};color:${active ? theme.appAccent : theme.textSecondary};background:${active ? theme.appAccent + "18" : "transparent"};border-radius:20px;padding:2px 9px;font-size:10px;cursor:pointer;font-weight:600;`;
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fullTextPlatformFilter = p;
+          renderFullTextIfVisible();
+        });
+        filters.appendChild(chip);
+      });
+      list.appendChild(filters);
+    }
+    const isCurrentChat = normalizeUrl(window.location.href);
+    results.forEach((r) => {
+      const row = document.createElement("div");
+      row.style.cssText = `position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 10px;margin-bottom:4px;border-radius:9px;border:1px solid ${theme.border};background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.15s ease;`;
+      row.addEventListener("mouseenter", () => {
+        row.style.background = theme.surfaceHover;
+        row.style.borderColor = `${theme.appAccent}55`;
+      });
+      row.addEventListener("mouseleave", () => {
+        row.style.background = "rgba(255,255,255,0.03)";
+        row.style.borderColor = theme.border;
+      });
+      const title = document.createElement("div");
+      title.style.cssText = `display:flex;justify-content:space-between;gap:8px;align-items:baseline;min-width:0;`;
+      title.innerHTML = `<span style="font-size:12px;font-weight:600;color:${theme.textPrimary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(r.name) || "Chat")}</span><span style="color:${theme.textSecondary};font-size:10px;flex-shrink:0;">${escapeHtml(r.platform || "")}</span>`;
+      const snippet = document.createElement("div");
+      snippet.style.cssText = `font-size:11px;color:${theme.textSecondary};line-height:1.45;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;`;
+      snippet.innerHTML = escapeHtml(r.snippet.slice(0, r.snippetHitStart)) +
+        `<mark style="background:${theme.appAccent};color:#fff;border-radius:3px;padding:0 2px;">` +
+        escapeHtml(r.snippet.slice(r.snippetHitStart, r.snippetHitEnd)) +
+        "</mark>" + escapeHtml(r.snippet.slice(r.snippetHitEnd));
+      row.appendChild(title);
+      row.appendChild(snippet);
+      row.addEventListener("click", () => openFullTextResult(r));
+      if (normalizeUrl(r.url) === isCurrentChat) {
+        const badge = document.createElement("span");
+        badge.textContent = "chat aperta";
+        badge.style.cssText = `color:${theme.appAccent};font-size:9px;font-weight:700;letter-spacing:0.5px;`;
+        title.appendChild(badge);
+      }
+      list.appendChild(row);
     });
   }
   function renderBookmarksList(container) {
@@ -26698,8 +26959,13 @@ ${suffix}`;
   function appendGlobalSearchResults(list, query) {
     const q = normalizeSearchText(query);
     if (!q || !list) return;
+    lastGlobalSearchQuery = query;
     const theme = currentTheme;
     const bookmarkMatches = (bookmarks || []).filter((b) => normalizeSearchText(b.name).includes(q) || normalizeSearchText(b.platform || "").includes(q));
+    const fullTextMatches = searchFullTextIndex(query);
+    if (fullTextMatches.length) {
+      renderFullTextResults(list, fullTextMatches);
+    }
     if (bookmarkMatches.length === 0) return;
     const sectionHeader = (label) => {
       const head = document.createElement("div");
@@ -26958,7 +27224,37 @@ ${suffix}`;
       });
       section.appendChild(foldersList);
       let insertBeforeNode = referenceElement || targetContainer.firstChild;
-      if (referenceElement && referenceElement.parentElement) {
+      // ── Ancore esplicite nel nav della piattaforma (richiesta utente: Claude) ──
+      // L'input deve stare SOTTO la voce "Personalizzazione" e SOPRA l'elenco
+      // "Tutte le chat e progetti". Le voci nav hanno textContent corto, così
+      // la guardia di lunghezza esclude contenitori grandi (liste chat).
+      const navRowText = (el) => {
+        const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+        return txt && txt.length <= 60 ? txt : "";
+      };
+      let anchoredPlacement = false;
+      let anchorRow = null;
+      let anchorAfter = true;
+      for (const child of targetContainer.children) {
+        if (/^(personalizz|customi)/i.test(navRowText(child))) {
+          anchorRow = child;
+          break;
+        }
+      }
+      if (!anchorRow) {
+        for (const child of targetContainer.children) {
+          if (/^(tutte le chat|tutti i progetti|progetti|all chats|projects)/i.test(navRowText(child))) {
+            anchorRow = child;
+            anchorAfter = false;
+            break;
+          }
+        }
+      }
+      if (anchorRow && anchorRow.parentElement === targetContainer) {
+        insertBeforeNode = anchorAfter ? anchorRow.nextSibling : anchorRow;
+        anchoredPlacement = true;
+      }
+      if (!anchoredPlacement && referenceElement && referenceElement.parentElement) {
         const siblings = Array.from(referenceElement.parentElement.children);
         const idx = siblings.indexOf(referenceElement);
         for (let i = 0; i < idx; i++) {
