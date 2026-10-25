@@ -25504,7 +25504,29 @@ ${suffix}`;
   }
   function openChat(url) {
     if (!requireExtensionContext()) return;
-    chrome.tabs.create({ url });
+    // chrome.tabs non è esposto ai content script: si apre la chat via service
+    // worker (handler "openTab"); se il messaggio o la risposta falliscono,
+    // fallback su window.open.
+    let settled = false;
+    try {
+      chrome.runtime.sendMessage({ action: "openTab", url }, (response) => {
+        settled = true;
+        if (!response || !response.success) {
+          try { window.open(url, "_blank"); } catch {
+          }
+        }
+      });
+    } catch {
+      try { window.open(url, "_blank"); } catch {
+      }
+      return;
+    }
+    setTimeout(() => {
+      if (!settled) {
+        try { window.open(url, "_blank"); } catch {
+        }
+      }
+    }, 1500);
   }
   function loadFoldersFromBackground() {
     if (!requireExtensionContext()) return;

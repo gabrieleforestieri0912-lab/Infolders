@@ -4,7 +4,7 @@
   "version": "1.2.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkZdMNca8mWYhHNjiIZl7pmzPR/AGSM+073ZQrOzFF4l7vQhkRYI8UGgVuW/ccxiDxTp3Wt9D+Iatwv20/rHgHSAaOabx2+bF4GNRyVWHeJZGUCny04Sln+znIwvsfbMSrGQgrVXWdfN4qlOseHYAiTlqsLJUoI4vivCMqS00KWHA5AJvOSqw+6zj0cD74wVpvFLcIDDyJdZr2pvlYFLI1S0Asw8YtAVhc9oDLQ6gglg4tuvfuTHIlk+GxuL5S6uC2KSK8kk5VKKg6WVuCS0ROHzvnfNCvJM0ESz36qTmgUk4x0VofEmItrnp10S7546JHqzi+lf8UhuHmg+F6Fx3bQIDAQAB",
   "description": "Organizza e potenzia le tue conversazioni AI. Cartelle illimitate, libreria prompt, profili istruzioni personalizzati, bookmark, ricerca avanzata e sincronizzazione multi-dispositivo per ChatGPT, Gemini, Claude e Perplexity.",
-  "permissions": ["storage", "identity", "tabs", "activeTab"],
+  "permissions": ["storage", "identity", "activeTab"],
   "host_permissions": [
     "https://www.googleapis.com/*",
     "https://*.supabase.co/*",
