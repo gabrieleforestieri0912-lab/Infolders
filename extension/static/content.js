@@ -22445,6 +22445,7 @@ ${suffix}`;
       migratePromptsFromLocalStorage();
       loadRecentCache();
       setupRecentChatTracking();
+      checkPendingTransfer();
       initLanguage(() => {
         syncUiWithPage();
         loadUserAndBookmarks();
@@ -22574,6 +22575,8 @@ ${suffix}`;
     });
     const sidebarBtn = createRoundButton("infolders-sidebar-toggle", "folder", t("button.open.sidebar"), theme);
     sidebarBtn.addEventListener("click", toggleSidebar);
+    const transferBtn = createRoundButton("infolders-transfer-toggle", "external-link", "Trasferisci su un'altra piattaforma", theme);
+    transferBtn.addEventListener("click", showTransferDialog);
     const premiumBtn = createRoundButton("infolders-premium-toggle", "crown", "Premium", theme);
     premiumBtn.addEventListener("click", openPremiumPopup);
     const guideBtn = createRoundButton("infolders-guide-toggle", "help-circle", "Guida", theme);
@@ -22581,6 +22584,7 @@ ${suffix}`;
       startGuidedTour();
     });
     container.appendChild(sidebarBtn);
+    container.appendChild(transferBtn);
     container.appendChild(premiumBtn);
     container.appendChild(guideBtn);
     document.body.appendChild(container);
@@ -24413,6 +24417,280 @@ ${suffix}`;
   `;
     renderRecentList(container);
   }
+  // ─── Trasferimento cross-LLM ────────────────────────────────────────────────
+  // Estrae la conversazione aperta via messageSelectors dell'adapter, la
+  // compone in Markdown e la consegna alla piattaforma target: si apre una
+  // nuova chat e sulla pagina target un banner (del content script) permette
+  // di inserire il testo nel campo di input, copiarlo o annullare. Mai inseriti
+  // automatici senza un'azione dell'utente. Nessun codice copiato dai
+  // concorrenti: solo lettura del DOM delle proprie interfacce.
+  var TRANSFER_STORAGE_KEY = "infolders_transfer";
+  var TRANSFER_MAX_AGE_MS = 2 * 60 * 1000;
+  var TRANSFER_TARGETS = [
+    { id: "chatgpt", name: "ChatGPT", newChatUrl: "https://chatgpt.com/" },
+    { id: "claude", name: "Claude", newChatUrl: "https://claude.ai/new" },
+    { id: "gemini", name: "Gemini", newChatUrl: "https://gemini.google.com/app" },
+    { id: "perplexity", name: "Perplexity", newChatUrl: "https://www.perplexity.ai/" },
+    { id: "grok", name: "Grok", newChatUrl: "https://grok.com/" }
+  ];
+  function normalizeMessageText(text) {
+    return String(text || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  function detectMessageRole(el) {
+    try {
+      const attr = el.getAttribute("data-message-author-role") || el.getAttribute("data-role") || el.getAttribute("data-author");
+      if (attr) {
+        const a = String(attr).toLowerCase();
+        if (a === "user" || a === "human") return "user";
+        if (a === "assistant" || a === "model" || a === "ai" || a === "bot") return "assistant";
+      }
+      const testid = String(el.getAttribute("data-testid") || el.getAttribute("data-test") || "");
+      if (testid) {
+        if (/user|human|query/i.test(testid)) return "user";
+        if (/assistant|bot|model/i.test(testid)) return "assistant";
+      }
+      const tag = el.tagName.toLowerCase();
+      if (tag === "user-query" || tag === "query-content") return "user";
+      if (tag === "model-response" || tag === "response-container-content") return "assistant";
+      if (el.closest("user-query")) return "user";
+      if (el.closest("model-response")) return "assistant";
+      const cls = typeof el.className === "string" ? el.className : "";
+      if (/user-message/i.test(cls)) return "user";
+      if (/claude-response|response-container/i.test(cls)) return "assistant";
+      if (/font-claude-message/i.test(cls) && !el.closest('[data-testid="user-message"]')) return "assistant";
+    } catch {
+    }
+    return "";
+  }
+  function extractCurrentConversation(spec) {
+    const candidates = [];
+    ((spec && spec.messageSelectors) || []).forEach((sel) => {
+      try {
+        document.querySelectorAll(sel).forEach((el) => candidates.push(el));
+      } catch {
+      }
+    });
+    if (!candidates.length) return [];
+    candidates.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+    const picked = [];
+    const messages = [];
+    for (const el of candidates) {
+      if (picked.some((p) => p.contains(el))) continue;
+      picked.push(el);
+      const text = normalizeMessageText(el.innerText != null ? el.innerText : el.textContent || "");
+      if (!text) continue;
+      messages.push({ role: detectMessageRole(el), text });
+    }
+    return messages;
+  }
+  function buildTransferMarkdown(details, messages) {
+    const lines = [];
+    lines.push(`# ${collapseText(details.name || "Chat")}`);
+    lines.push("");
+    lines.push(`> Conversazione trasferita con InFolders il ${nowIso()}`);
+    lines.push(`> Origine: ${details.platform || "Piattaforma"} \u2014 ${details.url}`);
+    lines.push("");
+    messages.forEach((m) => {
+      if (m.role === "user") {
+        lines.push("**Utente:**");
+      } else if (m.role === "assistant") {
+        lines.push("**Assistente:**");
+      }
+      lines.push(m.text);
+      lines.push("");
+    });
+    return lines.join("\n");
+  }
+  function sanitizeTransferFilename(name) {
+    let base = collapseText(name || "chat").replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+    return (base || "chat") + ".md";
+  }
+  function downloadTransferMarkdown(name, markdown) {
+    try {
+      const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = sanitizeTransferFilename(name);
+      a.click();
+      URL.revokeObjectURL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function showTransferDialog() {
+    const spec = getBookmarkHostSpec();
+    if (!spec) return;
+    const details = getCurrentChatDetails();
+    if (!details || !details.url) {
+      showToast("Apri una chat per trasferirla", "info");
+      return;
+    }
+    const messages = extractCurrentConversation(spec);
+    if (!messages.length) {
+      showToast("Nessun messaggio trovato in questa pagina (l'interfaccia della piattaforma è cambiata?)", "error", 4000);
+      return;
+    }
+    const theme = currentTheme;
+    const overlay = document.createElement("div");
+    Object.assign(overlay.style, {
+      position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
+      background: "rgba(0,0,0,0.6)", backdropFilter: "blur(10px)",
+      zIndex: "2147483647", display: "flex", alignItems: "center", justifyContent: "center"
+    });
+    const modal = document.createElement("div");
+    Object.assign(modal.style, {
+      background: theme.bg, border: `1px solid ${theme.glassBorder}`, borderRadius: "18px",
+      width: "92%", maxWidth: "380px", padding: "20px", color: "#fff",
+      boxShadow: "0 24px 60px rgba(0,0,0,0.6)"
+    });
+    const preview = collapseText(messages[0].text).slice(0, 80);
+    const targetButtons = TRANSFER_TARGETS.map((target) => `
+      <button class="transfer-target" data-url="${escapeHtml(target.newChatUrl)}" data-name="${escapeHtml(target.name)}"${target.name === details.platform ? ' disabled style="opacity:0.4;cursor:not-allowed;"' : ""} style="background:${theme.surface};border:1px solid ${theme.border};color:${theme.textPrimary};padding:10px 12px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;text-align:left;transition:all 0.15s ease;width:100%;box-sizing:border-box;">${escapeHtml(target.name)}${target.name === details.platform ? " (origine)" : ""}</button>
+    `).join("");
+    modal.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong style="font-size:14px;">Trasferisci conversazione</strong>
+        <button id="transfer-close" style="background:none;border:none;color:${theme.textSecondary};cursor:pointer;padding:4px;display:flex;">${lucide_icons_default.get("x", 14)}</button>
+      </div>
+      <p style="margin:0 0 6px;font-size:12px;color:${theme.textPrimary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(details.name || "Chat"))}</p>
+      <p style="margin:0 0 12px;font-size:11px;color:${theme.textSecondary};">${messages.length} messaggi estratti — "${escapeHtml(preview)}…"</p>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+        ${targetButtons}
+      </div>
+      <button id="transfer-download" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:9px 12px;border-radius:10px;cursor:pointer;font-size:12px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;">${lucide_icons_default.get("download", 13)} Scarica come .md</button>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    modal.querySelector("#transfer-close").addEventListener("click", () => overlay.remove());
+    modal.querySelectorAll(".transfer-target").forEach((btn) => {
+      btn.addEventListener("mouseenter", () => {
+        if (!btn.disabled) btn.style.background = theme.surfaceHover;
+      });
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = theme.surface;
+      });
+      btn.addEventListener("click", () => {
+        overlay.remove();
+        initiateTransferTo(btn.dataset.url, btn.dataset.name, details, messages);
+      });
+    });
+    modal.querySelector("#transfer-download").addEventListener("click", () => {
+      const markdown = buildTransferMarkdown(details, messages);
+      if (downloadTransferMarkdown(details.name, markdown)) {
+        showToast("Conversazione scaricata in Markdown", "success");
+        overlay.remove();
+      } else {
+        showToast("Download non riuscito", "error");
+      }
+    });
+  }
+  function initiateTransferTo(targetUrl, targetName, details, messages) {
+    const markdown = buildTransferMarkdown(details, messages);
+    const payload = {
+      text: markdown,
+      fromName: details.platform || "Sconosciuto",
+      fromHost: window.location.hostname,
+      chatName: collapseText(details.name || "Chat"),
+      createdAt: nowIso()
+    };
+    if (requireExtensionContext()) {
+      chrome.storage.local.set({ [TRANSFER_STORAGE_KEY]: payload });
+    }
+    // chrome.tabs non è disponibile ai content script: si passa dal service
+    // worker "openTab"; se anche quello manca, fallback su window.open.
+    let opened = false;
+    try {
+      chrome.runtime.sendMessage({ action: "openTab", url: targetUrl }, () => {
+      });
+      opened = true;
+    } catch {
+    }
+    if (!opened) {
+      try {
+        window.open(targetUrl, "_blank");
+        opened = true;
+      } catch {
+      }
+    }
+    if (opened) {
+      showToast(`Apertura ${targetName}: nella pagina target scegli "Inserisci nel campo" o "Copia"`, "info", 5000);
+    } else {
+      copyToClipboard(markdown);
+      showToast("Tab non apribile: conversazione copiata negli appunti", "error", 4500);
+    }
+  }
+  function dismissPendingTransfer(showToastFlag) {
+    if (requireExtensionContext()) {
+      chrome.storage.local.remove(TRANSFER_STORAGE_KEY);
+    }
+    const banner = document.getElementById("infolders-transfer-banner");
+    if (banner) banner.remove();
+    if (showToastFlag) showToast("Trasferimento annullato", "info");
+  }
+  function showTransferPendingBanner(payload) {
+    if (document.getElementById("infolders-transfer-banner")) return;
+    if (payload.fromHost === window.location.hostname) return;
+    const theme = currentTheme;
+    const banner = document.createElement("div");
+    banner.id = "infolders-transfer-banner";
+    const bannerSide = currentPlatform && currentPlatform.sidebarPosition === "right" ? "left" : "right";
+    Object.assign(banner.style, {
+      position: "fixed", bottom: "24px", [bannerSide]: "24px",
+      background: theme.bg, border: `1px solid ${theme.appAccent}55`, borderRadius: "14px",
+      padding: "14px 16px", maxWidth: "340px", zIndex: "2147483647", color: "#fff",
+      boxShadow: "0 16px 48px rgba(0,0,0,0.5)", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    });
+    banner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:13px;">Trasferimento da ${escapeHtml(payload.fromName || "altra piattaforma")}</strong>
+        <button id="transfer-banner-dismiss" style="background:none;border:none;color:${theme.textSecondary};cursor:pointer;padding:4px;display:flex;">${lucide_icons_default.get("x", 13)}</button>
+      </div>
+      <p style="margin:0 0 10px;font-size:11px;color:${theme.textSecondary};line-height:1.5;">"${escapeHtml(collapseText(payload.chatName || "Chat"))}" — inserisci il testo nel campo di input di questa piattaforma o copialo negli appunti.</p>
+      <div style="display:flex;gap:6px;">
+        <button id="transfer-insert" style="flex:1;background:${theme.appAccent};border:none;color:#fff;padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;">Inserisci nel campo</button>
+        <button id="transfer-copy" style="background:transparent;border:1px solid ${theme.border};color:${theme.textPrimary};padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;">${lucide_icons_default.get("clipboard", 12)} Copia</button>
+      </div>
+    `;
+    document.body.appendChild(banner);
+    banner.querySelector("#transfer-banner-dismiss").addEventListener("click", () => dismissPendingTransfer(true));
+    banner.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") dismissPendingTransfer(true);
+    });
+    banner.querySelector("#transfer-copy").addEventListener("click", () => {
+      copyToClipboard(payload.text);
+      showToast("Conversazione copiata negli appunti", "success");
+      dismissPendingTransfer(false);
+    });
+    banner.querySelector("#transfer-insert").addEventListener("click", () => {
+      const spec = getBookmarkHostSpec();
+      const input = spec ? findChatInput(spec) : null;
+      if (input && insertPromptTextIntoInput(input, payload.text)) {
+        showToast("Conversazione inserita nel campo di input", "success");
+        dismissPendingTransfer(false);
+      } else {
+        copyToClipboard(payload.text);
+        showToast("Campo non trovato: naviga in una chat e riprova, nel frattempo testo copiato", "info", 4500);
+      }
+    });
+  }
+  function checkPendingTransfer() {
+    if (!requireExtensionContext()) return;
+    chrome.storage.local.get([TRANSFER_STORAGE_KEY], (res) => {
+      const payload = res && res[TRANSFER_STORAGE_KEY];
+      if (!payload || !payload.text) return;
+      const created = new Date(payload.createdAt || 0).getTime();
+      if (!created || Date.now() - created > TRANSFER_MAX_AGE_MS) {
+        dismissPendingTransfer(false);
+        return;
+      }
+      showTransferPendingBanner(payload);
+    });
+  }
   function renderBookmarksList(container) {
     const theme = currentTheme;
     const list = container.querySelector("#bookmarks-list");
@@ -26214,6 +26492,18 @@ ${suffix}`;
       if (changes.infolders_recent) {
         recentCache = Array.isArray(changes.infolders_recent.newValue) ? changes.infolders_recent.newValue : [];
         renderRecentIfVisible();
+      }
+      if (changes.infolders_transfer) {
+        const payload = changes.infolders_transfer.newValue;
+        if (payload && payload.text && payload.fromHost !== window.location.hostname) {
+          const created = new Date(payload.createdAt || 0).getTime();
+          if (created && Date.now() - created <= TRANSFER_MAX_AGE_MS) {
+            showTransferPendingBanner(payload);
+          }
+        } else if (!payload) {
+          const banner = document.getElementById("infolders-transfer-banner");
+          if (banner) banner.remove();
+        }
       }
       if (changes.infolders_premium) {
         infoldersPremium = changes.infolders_premium.newValue || null;

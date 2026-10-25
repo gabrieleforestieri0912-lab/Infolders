@@ -69,6 +69,11 @@
       case "supabaseAuth":
         handleSupabaseAuth(req.op, req.body).then((data) => respond({ data })).catch((err) => respond({ error: err.message }));
         return true;
+      case "openTab":
+        chrome.tabs.create({ url: req.url }, (tab) => {
+          respond({ success: !!tab });
+        });
+        return true;
     }
   });
   async function handleSupabaseAuth(op, body) {
