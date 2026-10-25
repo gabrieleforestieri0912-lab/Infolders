@@ -293,6 +293,9 @@
         "tools.import": "Importa dati",
         "tools.clear": "Cancella tutto",
         "tools.clear.confirm": "Sei sicuro di voler cancellare tutti i dati? Questa azione \xE8 irreversibile.",
+        "tools.transfer.section": "Trasferimento tra piattaforme",
+        "tools.transfer": "Trasferisci conversazione",
+        "tools.transfer.sub": "Porta la chat aperta su un'altra piattaforma",
         "folders.title": "Cartelle",
         "folders.new": "Nuova",
         "folders.search.placeholder": "Cerca cartella o chat\u2026",
@@ -473,6 +476,9 @@
         "tools.import": "Import data",
         "tools.clear": "Clear all data",
         "tools.clear.confirm": "Are you sure you want to delete all data? This action is irreversible.",
+        "tools.transfer.section": "Platform transfer",
+        "tools.transfer": "Transfer conversation",
+        "tools.transfer.sub": "Bring the open chat to another platform",
         "folders.title": "Folders",
         "folders.new": "New",
         "folders.search.placeholder": "Search folder or chat\u2026",
@@ -22693,8 +22699,6 @@ ${suffix}`;
     });
     const sidebarBtn = createRoundButton("infolders-sidebar-toggle", "folder", t("button.open.sidebar"), theme);
     sidebarBtn.addEventListener("click", toggleSidebar);
-    const transferBtn = createRoundButton("infolders-transfer-toggle", "external-link", "Trasferisci su un'altra piattaforma", theme);
-    transferBtn.addEventListener("click", showTransferDialog);
     const premiumBtn = createRoundButton("infolders-premium-toggle", "crown", "Premium", theme);
     premiumBtn.addEventListener("click", openPremiumPopup);
     const guideBtn = createRoundButton("infolders-guide-toggle", "help-circle", "Guida", theme);
@@ -22702,7 +22706,6 @@ ${suffix}`;
       startGuidedTour();
     });
     container.appendChild(sidebarBtn);
-    container.appendChild(transferBtn);
     container.appendChild(premiumBtn);
     container.appendChild(guideBtn);
     document.body.appendChild(container);
@@ -23161,6 +23164,10 @@ ${suffix}`;
   `;
     container.innerHTML = `
     <div style="padding:0 0 8px;">
+      <p style="color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:0 0 14px;padding:0 2px;">${escapeHtml(t("tools.transfer.section"))}</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+        ${mkBtn("tool-transfer", "external-link", t("tools.transfer"), t("tools.transfer.sub"), false)}
+      </div>
       <p style="color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:0 0 14px;padding:0 2px;">Gestione Dati</p>
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${mkBtn("tool-export", "upload", "Esporta dati", "Scarica un backup JSON", false)}
@@ -23169,6 +23176,15 @@ ${suffix}`;
       </div>
     </div>
   `;
+    container.querySelector("#tool-transfer").addEventListener("click", () => {
+      const spec = getBookmarkHostSpec();
+      if (!spec || !isChatUrl() || !getCurrentChatDetails()) {
+        showToast(t("transfer.need.chat"), "info");
+        return;
+      }
+      closeSidebar();
+      showTransferDialog();
+    });
     container.querySelector("#tool-export").addEventListener("click", exportData);
     container.querySelector("#tool-import").addEventListener("click", importData);
     container.querySelector("#tool-clear").addEventListener("click", clearAllData);
