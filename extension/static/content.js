@@ -658,16 +658,25 @@
   function requireExtensionContext() {
     return extensionContextValid();
   }
+  // La perdita di contesto (ricarica/aggiornamento dell'estensione con la tab
+  // aperta) si manifesta come "Extension context invalidated" oppure, se il
+  // codice tocca chrome.storage/runtime quando non è più definito, come
+  // TypeError "reading 'local'/'onChanged'/'runtime'": in tutti i casi è un
+  // sintomo non riparabile a runtime, non un bug applicativo — non riemergere.
+  function isContextLossMessage(msg) {
+    if (!msg) return false;
+    return /Extension context invalid/i.test(msg) || /reading '(local|onChanged|runtime)'/.test(msg);
+  }
   window.addEventListener("error", (event) => {
     const msg = event && event.message ? String(event.message) : "";
-    if (msg.indexOf("Extension context invalidated") !== -1) {
+    if (isContextLossMessage(msg)) {
       if (event.preventDefault) event.preventDefault();
     }
   }, true);
   window.addEventListener("unhandledrejection", (event) => {
     const reason = event && event.reason;
     const msg = reason && reason.message ? String(reason.message) : reason ? String(reason) : "";
-    if (msg.indexOf("Extension context invalidated") !== -1) {
+    if (isContextLossMessage(msg)) {
       if (event.preventDefault) event.preventDefault();
     }
   }, true);
@@ -22891,6 +22900,7 @@ ${suffix}`;
     maybeAutoStartOnboarding();
   }
   function maybeAutoStartOnboarding() {
+    if (!requireExtensionContext()) return;
     if (currentUser) return;
     if (isSidebarOpen === false) return;
     chrome.storage.local.get(["infolders_tour_seen"], (res) => {
@@ -26320,7 +26330,7 @@ ${suffix}`;
         existing.add(key);
       }
     });
-    chrome.storage.local.set({ [tombstoneStorageKey()]: syncTombstones });
+    if (requireExtensionContext()) chrome.storage.local.set({ [tombstoneStorageKey()]: syncTombstones });
   }
   async function pushCloudData() {
     if (!currentUser) return;
@@ -27036,6 +27046,7 @@ ${suffix}`;
     return out;
   }
   function addChatUrlToFolder(folderId, chat) {
+    if (!requireExtensionContext()) return false;
     const target = findFolderById(folders, folderId);
     if (!target) return false;
     target.chats = target.chats || [];
