@@ -393,7 +393,65 @@
         "menu.edit.logo": "Modifica logo",
         "menu.rename": "Rinomina",
         "menu.change.color": "Cambia colore",
-        "menu.delete": "Elimina"
+        "menu.delete": "Elimina",
+        "ui.annulla": "Annulla",
+        "ui.usa": "Usa",
+        "ui.copia": "Copia",
+        "ui.chiudi": "Chiudi",
+        "sidebar.recent": "Recenti",
+        "sidebar.prompts": "Prompt",
+        "sidebar.profiles": "Profili",
+        "recent.group.today": "Oggi",
+        "recent.group.week": "Ultimi 7 giorni",
+        "recent.group.older": "Più vecchie",
+        "recent.empty": "Nessuna chat visitata di recente. Le chat che apri compaiono qui.",
+        "recent.now": "Adesso",
+        "recent.minutes": "{n} min",
+        "recent.hours": "{n}h",
+        "recent.days": "{n}g",
+        "recent.add.folder": "Aggiungi a una cartella",
+        "recent.add.bookmark": "Aggiungi ai bookmark",
+        "recent.remove": "Rimuovi dai recenti",
+        "recent.picker.title": "Aggiungi chat a una cartella",
+        "recent.picker.none": "Nessuna cartella",
+        "recent.picker.add": "Aggiungi",
+        "recent.picker.no.folders": "Crea prima una cartella dalla tab Cartelle",
+        "transfer.title": "Trasferisci conversazione",
+        "transfer.messages": "{n} messaggi estratti",
+        "transfer.source.badge": " (origine)",
+        "transfer.download": "Scarica come .md",
+        "transfer.downloaded": "Conversazione scaricata in Markdown",
+        "transfer.download.failed": "Download non riuscito",
+        "transfer.insert": "Inserisci nel campo",
+        "transfer.banner.title": "Trasferimento da {from}",
+        "transfer.banner.desc": "\"{chat}\" — inserisci il testo nel campo di input di questa piattaforma o copialo negli appunti.",
+        "transfer.inserted": "Conversazione inserita nel campo di input",
+        "transfer.insert.fallback": "Campo non trovato: naviga in una chat e riprova, nel frattempo testo copiato",
+        "transfer.cancelled": "Trasferimento annullato",
+        "transfer.copied": "Conversazione copiata negli appunti",
+        "transfer.opening": "Apertura {target}: nella pagina target scegli \"Inserisci nel campo\" o \"Copia\"",
+        "transfer.tab.failed": "Tab non apribile: conversazione copiata negli appunti",
+        "transfer.need.chat": "Apri una chat per trasferirla",
+        "transfer.no.messages": "Nessun messaggio trovato in questa pagina (l'interfaccia della piattaforma è cambiata?)",
+        "dnd.folder.self": "Non puoi spostare una cartella dentro sé stessa o una sua sottocartella",
+        "dnd.folder.error": "Errore nello spostamento della cartella",
+        "dnd.folder.moved": "\"{name}\" spostata in {target}",
+        "dnd.chat.added": "Chat aggiunta a {folder}",
+        "dnd.chat.dup": "\"{chat}\" è già in {folder}",
+        "dnd.header.title": "Trascina su un'altra cartella per spostare; su una cartella per aggiungere chat",
+        "prompt.dialog.title": "Completa il prompt",
+        "prompt.dialog.subtitle": "Compila le variabili e invia.",
+        "prompt.dialog.variables": "Il prompt \"{title}\" contiene {n} variabili.",
+        "prompt.dialog.use": "Usa nel campo di input",
+        "prompt.inserted": "Prompt inserito nel campo di input",
+        "prompt.copied.fallback": "Prompt copiato negli appunti (campo di input non trovato)",
+        "prompt.popup.title": "Libreria prompt",
+        "prompt.popup.hint": "↑↓ naviga · Invio usa · Esc chiude",
+        "prompt.popup.search": "Cerca prompt...",
+        "prompt.popup.empty": "Nessun prompt. Creane uno dalla sidebar (tab Prompt).",
+        "fulltext.section": "Nel testo delle chat ({n})",
+        "fulltext.all": "Tutte",
+        "fulltext.open.badge": "chat aperta"
       }
     },
     en: {
@@ -515,7 +573,65 @@
         "menu.edit.logo": "Edit logo",
         "menu.rename": "Rename",
         "menu.change.color": "Change color",
-        "menu.delete": "Delete"
+        "menu.delete": "Delete",
+        "ui.annulla": "Cancel",
+        "ui.usa": "Use",
+        "ui.copia": "Copy",
+        "ui.chiudi": "Close",
+        "sidebar.recent": "Recent",
+        "sidebar.prompts": "Prompts",
+        "sidebar.profiles": "Profiles",
+        "recent.group.today": "Today",
+        "recent.group.week": "Last 7 days",
+        "recent.group.older": "Older",
+        "recent.empty": "No recently visited chats. Chats you open will appear here.",
+        "recent.now": "Now",
+        "recent.minutes": "{n} min",
+        "recent.hours": "{n}h",
+        "recent.days": "{n}d",
+        "recent.add.folder": "Add to a folder",
+        "recent.add.bookmark": "Add to bookmarks",
+        "recent.remove": "Remove from recent",
+        "recent.picker.title": "Add chat to a folder",
+        "recent.picker.none": "No folders",
+        "recent.picker.add": "Add",
+        "recent.picker.no.folders": "Create a folder first from the Folders tab",
+        "transfer.title": "Transfer conversation",
+        "transfer.messages": "{n} messages extracted",
+        "transfer.source.badge": " (source)",
+        "transfer.download": "Download as .md",
+        "transfer.downloaded": "Conversation downloaded as Markdown",
+        "transfer.download.failed": "Download failed",
+        "transfer.insert": "Insert into field",
+        "transfer.banner.title": "Transfer from {from}",
+        "transfer.banner.desc": "\"{chat}\" — insert the text into this platform's input field or copy it to the clipboard.",
+        "transfer.inserted": "Conversation inserted into the input field",
+        "transfer.insert.fallback": "Field not found: open a chat and retry; text copied meanwhile",
+        "transfer.cancelled": "Transfer cancelled",
+        "transfer.copied": "Conversation copied to the clipboard",
+        "transfer.opening": "Opening {target}: in the target page choose \"Insert into field\" or \"Copy\"",
+        "transfer.tab.failed": "Couldn't open a tab: conversation copied to the clipboard",
+        "transfer.need.chat": "Open a chat to transfer it",
+        "transfer.no.messages": "No messages found on this page (the platform UI may have changed?)",
+        "dnd.folder.self": "You can't move a folder into itself or one of its subfolders",
+        "dnd.folder.error": "Error moving the folder",
+        "dnd.folder.moved": "\"{name}\" moved to {target}",
+        "dnd.chat.added": "Chat added to {folder}",
+        "dnd.chat.dup": "\"{chat}\" is already in {folder}",
+        "dnd.header.title": "Drag onto another folder to move it; onto a folder to add chats",
+        "prompt.dialog.title": "Complete the prompt",
+        "prompt.dialog.subtitle": "Fill in the variables and send.",
+        "prompt.dialog.variables": "The prompt \"{title}\" contains {n} variables.",
+        "prompt.dialog.use": "Use in the input field",
+        "prompt.inserted": "Prompt inserted into the input field",
+        "prompt.copied.fallback": "Prompt copied to the clipboard (input field not found)",
+        "prompt.popup.title": "Prompt library",
+        "prompt.popup.hint": "↑↓ navigate · Enter use · Esc close",
+        "prompt.popup.search": "Search prompts...",
+        "prompt.popup.empty": "No prompts. Create one from the sidebar (Prompt tab).",
+        "fulltext.section": "In chat text ({n})",
+        "fulltext.all": "All",
+        "fulltext.open.badge": "open chat"
       }
     }
   };
@@ -21880,11 +21996,11 @@ ${suffix}`;
     const spec = getBookmarkHostSpec();
     const input = spec ? findChatInput(spec) : null;
     if (input && insertPromptTextIntoInput(input, finalText)) {
-      showToast("Prompt inserito nel campo di input", "success");
+      showToast(t("prompt.inserted"), "success");
       return;
     }
     copyToClipboard(finalText);
-    showToast("Prompt copiato negli appunti (campo di input non trovato)", "info", 3500);
+    showToast(t("prompt.copied.fallback"), "info", 3500);
   }
   function showPromptVariablesDialog(prompt, variables, onCompose) {
     const theme = currentTheme;
@@ -21903,12 +22019,12 @@ ${suffix}`;
       `<input data-promptvar="${escapeHtml(v)}" placeholder="${escapeHtml(v)}" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:13px;margin-bottom:10px;outline:none;">`
     )).join("");
     modal.innerHTML = `
-    <h3 style="margin:0 0 6px;font-size:16px;">Completa il prompt</h3>
-    <p style="margin:0 0 14px;font-size:12px;color:${theme.textSecondary};">Il prompt "${escapeHtml(prompt.title || "")}" contiene ${variables.length} variabile${variables.length === 1 ? "e" : "i"}. Compila i campi e invia.</p>
+    <h3 style="margin:0 0 6px;font-size:16px;">${escapeHtml(t("prompt.dialog.title"))}</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:${theme.textSecondary};">${escapeHtml(t("prompt.dialog.variables", { title: prompt.title || "", n: variables.length }))} ${escapeHtml(t("prompt.dialog.subtitle"))}</p>
     ${fields}
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="promptvar-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">Annulla</button>
-      <button id="promptvar-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Usa nel campo di input</button>
+      <button id="promptvar-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">${escapeHtml(t("ui.annulla"))}</button>
+      <button id="promptvar-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">${escapeHtml(t("prompt.dialog.use"))}</button>
     </div>
   `;
     overlay.appendChild(modal);
@@ -21986,13 +22102,13 @@ ${suffix}`;
     });
     panel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <strong style="font-size:13px;font-weight:600;">Libreria prompt</strong>
-        <span style="color:${theme.textSecondary};font-size:10px;">\u2191\u2193 naviga \u00b7 Invio usa \u00b7 Esc chiude</span>
+        <strong style="font-size:13px;font-weight:600;">${escapeHtml(t("prompt.popup.title"))}</strong>
+        <span style="color:${theme.textSecondary};font-size:10px;">${escapeHtml(t("prompt.popup.hint"))}</span>
       </div>
     `;
     const searchEl = document.createElement("input");
     searchEl.type = "search";
-    searchEl.placeholder = "Cerca prompt...";
+    searchEl.placeholder = t("prompt.popup.search");
     Object.assign(searchEl.style, {
       width: "100%", boxSizing: "border-box", padding: "9px 11px",
       borderRadius: "10px", border: `1px solid ${theme.border}`, background: theme.glassBg,
@@ -22027,7 +22143,7 @@ ${suffix}`;
       list.innerHTML = "";
       items = filterPrompts(q);
       if (!items.length) {
-        list.innerHTML = `<div style="text-align:center;padding:24px 12px;color:${theme.textSecondary};font-size:12px;">Nessun prompt. Creane uno dalla sidebar (tab Prompt).</div>`;
+        list.innerHTML = `<div style="text-align:center;padding:24px 12px;color:${theme.textSecondary};font-size:12px;">${escapeHtml(t("prompt.popup.empty"))}</div>`;
         selIdx = -1;
         return;
       }
@@ -22888,13 +23004,13 @@ ${suffix}`;
     ];
     const theme = currentTheme;
     const tabLabels = {
-      account: "Account",
-      folders: "Cartelle",
-      bookmarks: "Bookmark",
-      recent: "Recenti",
-      prompts: "Prompt",
-      profiles: "Profili",
-      tools: "Impostazioni"
+      account: t("sidebar.account"),
+      folders: t("sidebar.folders"),
+      bookmarks: t("sidebar.bookmarks"),
+      recent: t("sidebar.recent"),
+      prompts: t("sidebar.prompts"),
+      profiles: t("sidebar.profiles"),
+      tools: t("sidebar.tools")
     };
     allTabs.forEach((tab) => {
       const btn = document.createElement("button");
@@ -23106,7 +23222,7 @@ ${suffix}`;
           e.preventDefault();
           const movedFolder = findFolderById(folders, payload.id);
           if (moveFolderToTarget(payload.id, null)) {
-            showToast(`"${(movedFolder && movedFolder.name) || "Cartella"}" spostata in Root`, "success");
+            showToast(t("dnd.folder.moved", { name: (movedFolder && movedFolder.name) || "Cartella", target: "Root" }), "success");
           }
         }
       });
@@ -23311,7 +23427,7 @@ ${suffix}`;
       showFolderContextMenu(e, folder);
     });
     header.draggable = true;
-    header.title = "Trascina su un'altra cartella per spostare; su una cartella per aggiungere chat";
+    header.title = t("dnd.header.title");
     header.addEventListener("dragstart", (e) => {
       e.stopPropagation();
       setInFoldersDragData({ type: "folder", id: folder.id });
@@ -23345,12 +23461,12 @@ ${suffix}`;
       if (payload.type === "folder") {
         if (payload.id === folder.id) return;
         if (isFolderDescendant(payload.id, folder.id)) {
-          showToast("Non puoi spostare una cartella dentro sé stessa o una sua sottocartella", "error");
+          showToast(t("dnd.folder.self"), "error");
           return;
         }
         const movedFolder = findFolderById(folders, payload.id);
         if (moveFolderToTarget(payload.id, folder.id)) {
-          showToast(`"${(movedFolder && movedFolder.name) || "Cartella"}" spostata in ${folder.name}`, "success");
+          showToast(t("dnd.folder.moved", { name: (movedFolder && movedFolder.name) || "Cartella", target: folder.name }), "success");
         }
       } else if (payload.type === "bookmark") {
         addChatToFolder(folder, { name: payload.name, url: payload.url, platform: payload.platform });
@@ -23520,12 +23636,12 @@ ${suffix}`;
     const then = new Date(ts).getTime();
     if (isNaN(then)) return "";
     const min = Math.floor((Date.now() - then) / 60000);
-    if (min < 1) return "Adesso";
-    if (min < 60) return `${min} min`;
+    if (min < 1) return t("recent.now");
+    if (min < 60) return t("recent.minutes", { n: min });
     const h = Math.floor(min / 60);
-    if (h < 24) return `${h}h`;
+    if (h < 24) return t("recent.hours", { n: h });
     const d = Math.floor(h / 24);
-    if (d < 7) return `${d}g`;
+    if (d < 7) return t("recent.days", { n: d });
     return new Date(ts).toLocaleDateString();
   }
   function bucketRecentByAge(now) {
@@ -23562,16 +23678,16 @@ ${suffix}`;
     const targets = getValidMoveTargets(folders, -1);
     const optionsHtml = targets.map((t2) => `<option value="${t2.id}">${escapeHtml(t2.name)}</option>`).join("");
     modal.innerHTML = `
-    <h3 style="margin:0 0 14px;font-size:15px;">Aggiungi chat a una cartella</h3>
+    <h3 style="margin:0 0 14px;font-size:15px;">${escapeHtml(t("recent.picker.title"))}</h3>
     <p style="margin:0 0 12px;font-size:12px;color:${theme.textSecondary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(chat.name || "Chat"))}</p>
     <div style="margin-bottom:18px;">
       <select id="recent-target-select" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:13px;outline:none;">
-        ${optionsHtml || '<option value="">Nessuna cartella</option>'}
+        ${optionsHtml || `<option value="">${escapeHtml(t("recent.picker.none"))}</option>`}
       </select>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="recent-target-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">Annulla</button>
-      <button id="recent-target-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Aggiungi</button>
+      <button id="recent-target-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">${escapeHtml(t("ui.annulla"))}</button>
+      <button id="recent-target-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">${escapeHtml(t("recent.picker.add"))}</button>
     </div>
   `;
     overlay.appendChild(modal);
@@ -23582,7 +23698,7 @@ ${suffix}`;
       const target = findFolderById(folders, targetId);
       overlay.remove();
       if (!target) {
-        showToast("Crea prima una cartella dalla tab Cartelle", "info");
+        showToast(t("recent.picker.no.folders"), "info");
         return;
       }
       addChatToFolder(target, { name: chat.name, url: chat.url, platform: chat.platform });
@@ -23597,17 +23713,17 @@ ${suffix}`;
       list.innerHTML = `
       <div style="text-align:center;padding:40px 16px;">
         <span style="color:${theme.appAccent};display:flex;justify-content:center;margin-bottom:12px;opacity:0.5;">${lucide_icons_default.get("clock", 28)}</span>
-        <p style="color:${theme.textSecondary};font-size:12px;line-height:1.6;margin:0;">Nessuna chat visitata di recente. Le chat che apri compaiono qui.</p>
+        <p style="color:${theme.textSecondary};font-size:12px;line-height:1.6;margin:0;">${escapeHtml(t("recent.empty"))}</p>
       </div>`;
       return;
     }
     const buckets = bucketRecentByAge();
-    [["today", "Oggi"], ["week", "Ultimi 7 giorni"], ["older", "Più vecchie"]].forEach(([key, label]) => {
+    [["today", "recent.group.today"], ["week", "recent.group.week"], ["older", "recent.group.older"]].forEach(([key, labelKey]) => {
       const items = buckets[key];
       if (!items.length) return;
       const header = document.createElement("p");
       header.style.cssText = `color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:14px 2px 8px;`;
-      header.textContent = label;
+      header.textContent = t(labelKey);
       list.appendChild(header);
       items.forEach((r) => {
         const item = document.createElement("div");
@@ -23644,13 +23760,13 @@ ${suffix}`;
           b.style.cssText = "background:transparent;border:none;cursor:pointer;padding:4px 5px;border-radius:6px;display:flex;align-items:center;color:" + theme.textSecondary + ";transition:all 0.15s ease;";
           return b;
         };
-        const folderBtn = mkBtn("recent-folder", "folder-plus", "Aggiungi a una cartella");
+        const folderBtn = mkBtn("recent-folder", "folder-plus", t("recent.add.folder"));
         folderBtn.addEventListener("click", () => showRecentFolderPicker(r));
-        const bookmarkBtn = mkBtn("recent-bookmark", "bookmark", "Aggiungi ai bookmark");
+        const bookmarkBtn = mkBtn("recent-bookmark", "bookmark", t("recent.add.bookmark"));
         bookmarkBtn.addEventListener("click", () => {
           addBookmark(r.name || "Chat", r.url, r.platform);
         });
-        const removeBtn = mkBtn("recent-remove", "x", "Rimuovi dai recenti");
+        const removeBtn = mkBtn("recent-remove", "x", t("recent.remove"));
         removeBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           deleteRecentEntry(r.url);
@@ -24047,12 +24163,12 @@ ${suffix}`;
   function moveFolderToTarget(folderId, targetId) {
     if (folderId === targetId) return false;
     if (targetId != null && isFolderDescendant(folderId, targetId)) {
-      showToast("Non puoi spostare una cartella dentro sé stessa o una sua sottocartella", "error");
+      showToast(t("dnd.folder.self"), "error");
       return false;
     }
     const nodeToMove = findAndRemoveFolder(folders, folderId);
     if (!nodeToMove) {
-      showToast("Errore nello spostamento della cartella", "error");
+      showToast(t("dnd.folder.error"), "error");
       return false;
     }
     nodeToMove.updatedAt = nowIso();
@@ -24072,7 +24188,7 @@ ${suffix}`;
   function addChatToFolder(folder, chat) {
     if (!folder || !chat || !chat.url) return false;
     if ((folder.chats || []).some((c) => normalizeUrl(c.url || "") === normalizeUrl(chat.url))) {
-      showToast(`"${collapseText(chat.name || "Chat")}" è già in ${folder.name}`, "info");
+      showToast(t("dnd.chat.dup", { chat: collapseText(chat.name || "Chat"), folder: folder.name }), "info");
       return false;
     }
     folder.chats = folder.chats || [];
@@ -24082,7 +24198,7 @@ ${suffix}`;
     const container = document.getElementById("infolders-sidebar-content");
     if (container) renderFoldersList(container);
     queueCloudSync();
-    showToast(`Chat aggiunta a ${folder.name}`, "success");
+    showToast(t("dnd.chat.added", { folder: folder.name }), "success");
     return true;
   }
   function applyFolderDropHighlight(el, active) {
@@ -24449,7 +24565,7 @@ ${suffix}`;
     container.innerHTML = `
     <div style="padding:0 0 8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <p style="color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:0;">Recenti</p>
+        <p style="color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:0;">${escapeHtml(t("sidebar.recent"))}</p>
       </div>
       <div id="recent-list"></div>
     </div>
@@ -24563,12 +24679,12 @@ ${suffix}`;
     if (!spec) return;
     const details = getCurrentChatDetails();
     if (!details || !details.url) {
-      showToast("Apri una chat per trasferirla", "info");
+      showToast(t("transfer.need.chat"), "info");
       return;
     }
     const messages = extractCurrentConversation(spec);
     if (!messages.length) {
-      showToast("Nessun messaggio trovato in questa pagina (l'interfaccia della piattaforma è cambiata?)", "error", 4000);
+      showToast(t("transfer.no.messages"), "error", 4000);
       return;
     }
     const theme = currentTheme;
@@ -24586,19 +24702,19 @@ ${suffix}`;
     });
     const preview = collapseText(messages[0].text).slice(0, 80);
     const targetButtons = TRANSFER_TARGETS.map((target) => `
-      <button class="transfer-target" data-url="${escapeHtml(target.newChatUrl)}" data-name="${escapeHtml(target.name)}"${target.name === details.platform ? ' disabled style="opacity:0.4;cursor:not-allowed;"' : ""} style="background:${theme.surface};border:1px solid ${theme.border};color:${theme.textPrimary};padding:10px 12px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;text-align:left;transition:all 0.15s ease;width:100%;box-sizing:border-box;">${escapeHtml(target.name)}${target.name === details.platform ? " (origine)" : ""}</button>
+      <button class="transfer-target" data-url="${escapeHtml(target.newChatUrl)}" data-name="${escapeHtml(target.name)}"${target.name === details.platform ? ` disabled data-src="1" style="opacity:0.4;cursor:not-allowed;"` : ""} style="background:${theme.surface};border:1px solid ${theme.border};color:${theme.textPrimary};padding:10px 12px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;text-align:left;transition:all 0.15s ease;width:100%;box-sizing:border-box;">${escapeHtml(target.name)}${target.name === details.platform ? escapeHtml(t("transfer.source.badge")) : ""}</button>
     `).join("");
     modal.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <strong style="font-size:14px;">Trasferisci conversazione</strong>
+        <strong style="font-size:14px;">${escapeHtml(t("transfer.title"))}</strong>
         <button id="transfer-close" style="background:none;border:none;color:${theme.textSecondary};cursor:pointer;padding:4px;display:flex;">${lucide_icons_default.get("x", 14)}</button>
       </div>
       <p style="margin:0 0 6px;font-size:12px;color:${theme.textPrimary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(details.name || "Chat"))}</p>
-      <p style="margin:0 0 12px;font-size:11px;color:${theme.textSecondary};">${messages.length} messaggi estratti — "${escapeHtml(preview)}…"</p>
+      <p style="margin:0 0 12px;font-size:11px;color:${theme.textSecondary};">${escapeHtml(t("transfer.messages", { n: messages.length }))} — "${escapeHtml(preview)}…"</p>
       <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
         ${targetButtons}
       </div>
-      <button id="transfer-download" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:9px 12px;border-radius:10px;cursor:pointer;font-size:12px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;">${lucide_icons_default.get("download", 13)} Scarica come .md</button>
+      <button id="transfer-download" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:9px 12px;border-radius:10px;cursor:pointer;font-size:12px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;">${lucide_icons_default.get("download", 13)} ${escapeHtml(t("transfer.download"))}</button>
     `;
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
@@ -24621,10 +24737,10 @@ ${suffix}`;
     modal.querySelector("#transfer-download").addEventListener("click", () => {
       const markdown = buildTransferMarkdown(details, messages);
       if (downloadTransferMarkdown(details.name, markdown)) {
-        showToast("Conversazione scaricata in Markdown", "success");
+        showToast(t("transfer.downloaded"), "success");
         overlay.remove();
       } else {
-        showToast("Download non riuscito", "error");
+        showToast(t("transfer.download.failed"), "error");
       }
     });
   }
@@ -24657,10 +24773,10 @@ ${suffix}`;
       }
     }
     if (opened) {
-      showToast(`Apertura ${targetName}: nella pagina target scegli "Inserisci nel campo" o "Copia"`, "info", 5000);
+      showToast(t("transfer.opening", { target: targetName }), "info", 5000);
     } else {
       copyToClipboard(markdown);
-      showToast("Tab non apribile: conversazione copiata negli appunti", "error", 4500);
+      showToast(t("transfer.tab.failed"), "error", 4500);
     }
   }
   function dismissPendingTransfer(showToastFlag) {
@@ -24669,7 +24785,7 @@ ${suffix}`;
     }
     const banner = document.getElementById("infolders-transfer-banner");
     if (banner) banner.remove();
-    if (showToastFlag) showToast("Trasferimento annullato", "info");
+    if (showToastFlag) showToast(t("transfer.cancelled"), "info");
   }
   function showTransferPendingBanner(payload) {
     if (document.getElementById("infolders-transfer-banner")) return;
@@ -24686,13 +24802,13 @@ ${suffix}`;
     });
     banner.innerHTML = `
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px;">
-        <strong style="font-size:13px;">Trasferimento da ${escapeHtml(payload.fromName || "altra piattaforma")}</strong>
+        <strong style="font-size:13px;">${escapeHtml(t("transfer.banner.title", { from: payload.fromName || (currentLang === "it" ? "altra piattaforma" : "another platform") }))}</strong>
         <button id="transfer-banner-dismiss" style="background:none;border:none;color:${theme.textSecondary};cursor:pointer;padding:4px;display:flex;">${lucide_icons_default.get("x", 13)}</button>
       </div>
-      <p style="margin:0 0 10px;font-size:11px;color:${theme.textSecondary};line-height:1.5;">"${escapeHtml(collapseText(payload.chatName || "Chat"))}" — inserisci il testo nel campo di input di questa piattaforma o copialo negli appunti.</p>
+      <p style="margin:0 0 10px;font-size:11px;color:${theme.textSecondary};line-height:1.5;">${escapeHtml(t("transfer.banner.desc", { chat: collapseText(payload.chatName || "Chat") }))}</p>
       <div style="display:flex;gap:6px;">
-        <button id="transfer-insert" style="flex:1;background:${theme.appAccent};border:none;color:#fff;padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;">Inserisci nel campo</button>
-        <button id="transfer-copy" style="background:transparent;border:1px solid ${theme.border};color:${theme.textPrimary};padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;">${lucide_icons_default.get("clipboard", 12)} Copia</button>
+        <button id="transfer-insert" style="flex:1;background:${theme.appAccent};border:none;color:#fff;padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;">${escapeHtml(t("transfer.insert"))}</button>
+        <button id="transfer-copy" style="background:transparent;border:1px solid ${theme.border};color:${theme.textPrimary};padding:8px 10px;border-radius:9px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;">${lucide_icons_default.get("clipboard", 12)} ${escapeHtml(t("ui.copia"))}</button>
       </div>
     `;
     document.body.appendChild(banner);
@@ -24702,18 +24818,18 @@ ${suffix}`;
     });
     banner.querySelector("#transfer-copy").addEventListener("click", () => {
       copyToClipboard(payload.text);
-      showToast("Conversazione copiata negli appunti", "success");
+      showToast(t("transfer.copied"), "success");
       dismissPendingTransfer(false);
     });
     banner.querySelector("#transfer-insert").addEventListener("click", () => {
       const spec = getBookmarkHostSpec();
       const input = spec ? findChatInput(spec) : null;
       if (input && insertPromptTextIntoInput(input, payload.text)) {
-        showToast("Conversazione inserita nel campo di input", "success");
+        showToast(t("transfer.inserted"), "success");
         dismissPendingTransfer(false);
       } else {
         copyToClipboard(payload.text);
-        showToast("Campo non trovato: naviga in una chat e riprova, nel frattempo testo copiato", "info", 4500);
+        showToast(t("transfer.insert.fallback"), "info", 4500);
       }
     });
   }
@@ -24897,7 +25013,7 @@ ${suffix}`;
     const theme = currentTheme;
     const header = document.createElement("div");
     header.style.cssText = `color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:12px 2px 6px;`;
-    header.textContent = `Nel testo delle chat (${results.length > 20 ? "20+" : results.length})`;
+    header.textContent = t("fulltext.section", { n: results.length > 20 ? "20+" : results.length });
     list.appendChild(header);
     // Filtro piattaforma: badge cliccabili costruite dai risultati trovati.
     const platforms = fullTextPlatformBadges(results);
@@ -24907,7 +25023,7 @@ ${suffix}`;
       ["all", ...platforms].forEach((p) => {
         const chip = document.createElement("button");
         chip.type = "button";
-        chip.textContent = p === "all" ? "Tutte" : p;
+        chip.textContent = p === "all" ? t("fulltext.all") : p;
         const active = (fullTextPlatformFilter || "all") === p;
         chip.style.cssText = `border:1px solid ${active ? theme.appAccent : theme.border};color:${active ? theme.appAccent : theme.textSecondary};background:${active ? theme.appAccent + "18" : "transparent"};border-radius:20px;padding:2px 9px;font-size:10px;cursor:pointer;font-weight:600;`;
         chip.addEventListener("click", (e) => {
@@ -24945,7 +25061,7 @@ ${suffix}`;
       row.addEventListener("click", () => openFullTextResult(r));
       if (normalizeUrl(r.url) === isCurrentChat) {
         const badge = document.createElement("span");
-        badge.textContent = "chat aperta";
+        badge.textContent = t("fulltext.open.badge");
         badge.style.cssText = `color:${theme.appAccent};font-size:9px;font-weight:700;letter-spacing:0.5px;`;
         title.appendChild(badge);
       }
