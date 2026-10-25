@@ -22798,6 +22798,7 @@ ${suffix}`;
       { id: "account", icon: "user" },
       { id: "folders", icon: "folder" },
       { id: "bookmarks", icon: "bookmark" },
+      { id: "recent", icon: "clock" },
       { id: "prompts", icon: "file-text" },
       { id: "profiles", icon: "user-check" },
       { id: "tools", icon: "settings" }
@@ -22806,8 +22807,9 @@ ${suffix}`;
       account: t("sidebar.account") || "Account",
       folders: t("sidebar.folders") || "Cartelle",
       bookmarks: t("sidebar.bookmarks") || "Bookmark",
-      prompts: "Prompt",
-      profiles: "Profili",
+      recent: t("sidebar.recent") || "Recenti",
+      prompts: t("sidebar.prompts") || "Prompt",
+      profiles: t("sidebar.profiles") || "Profili",
       tools: t("sidebar.tools") || "Impostazioni"
     };
     allTabs.forEach((tab) => {
