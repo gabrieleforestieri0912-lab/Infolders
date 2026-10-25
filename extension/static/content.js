@@ -10,6 +10,7 @@
     bookmark: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>',
     settings: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
     user: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    clock: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
     crown: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>',
     x: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
@@ -22442,6 +22443,8 @@ ${suffix}`;
       currentTheme = config.theme;
       currentPlatform = config;
       migratePromptsFromLocalStorage();
+      loadRecentCache();
+      setupRecentChatTracking();
       initLanguage(() => {
         syncUiWithPage();
         loadUserAndBookmarks();
@@ -22841,6 +22844,7 @@ ${suffix}`;
       { id: "account", icon: "user" },
       { id: "folders", icon: "folder" },
       { id: "bookmarks", icon: "bookmark" },
+      { id: "recent", icon: "clock" },
       { id: "prompts", icon: "file-text" },
       { id: "profiles", icon: "user-check" },
       { id: "tools", icon: "settings" }
@@ -22850,6 +22854,7 @@ ${suffix}`;
       account: "Account",
       folders: "Cartelle",
       bookmarks: "Bookmark",
+      recent: "Recenti",
       prompts: "Prompt",
       profiles: "Profili",
       tools: "Impostazioni"
@@ -22933,6 +22938,9 @@ ${suffix}`;
         break;
       case "bookmarks":
         renderBookmarksTab(content);
+        break;
+      case "recent":
+        renderRecentTab(content);
         break;
       case "prompts":
         renderPromptsTab(content);
@@ -23370,6 +23378,249 @@ ${suffix}`;
       name = document.title || "Chat";
     }
     return { name, url, platform: config.name };
+  }
+  // ─── Chat recenti ──────────────────────────────────────────────────────────
+  // Ogni visita a una chat (inclusa navigazione SPA) aggiorna la lista locale
+  // "Recenti" su chrome.storage.local: non vengono sincronizzate sul cloud, la
+  // storia delle visite resta sul device. Condivide i toast/open con il resto.
+  var RECENT_STORAGE_KEY = "infolders_recent";
+  var RECENT_MAX_ITEMS = 100;
+  var recentCache = [];
+  function loadRecentCache() {
+    if (!requireExtensionContext()) return;
+    chrome.storage.local.get([RECENT_STORAGE_KEY], (res) => {
+      const list = res && res[RECENT_STORAGE_KEY];
+      recentCache = Array.isArray(list) ? list : [];
+      renderRecentIfVisible();
+    });
+  }
+  function persistRecentCache() {
+    if (requireExtensionContext()) {
+      chrome.storage.local.set({ [RECENT_STORAGE_KEY]: recentCache });
+    }
+  }
+  function renderRecentIfVisible() {
+    const content = document.getElementById("infolders-sidebar-content");
+    if (content && content.querySelector("#recent-list")) renderRecentList(content);
+  }
+  function recordRecentChatVisit(details) {
+    const url = normalizeUrl(details.url);
+    if (!url) return;
+    const existingIdx = recentCache.findIndex((r) => normalizeUrl(r.url || "") === url);
+    const ts = nowIso();
+    if (existingIdx >= 0) {
+      const existing = recentCache.splice(existingIdx, 1)[0];
+      recentCache.unshift(Object.assign({}, existing, {
+        name: details.name || existing.name,
+        platform: details.platform || existing.platform,
+        lastVisitedAt: ts,
+        visitCount: (existing.visitCount || 1) + 1
+      }));
+    } else {
+      recentCache.unshift({
+        url,
+        name: details.name || "Chat",
+        platform: details.platform || "Generico",
+        lastVisitedAt: ts,
+        firstVisitedAt: ts,
+        visitCount: 1
+      });
+    }
+    if (recentCache.length > RECENT_MAX_ITEMS) recentCache.length = RECENT_MAX_ITEMS;
+    persistRecentCache();
+    renderRecentIfVisible();
+  }
+  function trackRecentChatVisit() {
+    if (!isChatUrl()) return;
+    const details = getCurrentChatDetails();
+    if (details && details.url) recordRecentChatVisit(details);
+  }
+  function setupRecentChatTracking() {
+    if (!requireExtensionContext()) return;
+    let lastTrackedHref = window.location.href;
+    let pending = 0;
+    const scheduleTrack = (delay) => {
+      clearTimeout(pending);
+      pending = setTimeout(trackRecentChatVisit, delay);
+    };
+    const onNav = () => {
+      if (window.location.href === lastTrackedHref) return;
+      lastTrackedHref = window.location.href;
+      // Ritardo per dare tempo a titolo e anchor nativi di stabilizzarsi.
+      scheduleTrack(1200);
+    };
+    try {
+      const origPush = history.pushState;
+      history.pushState = function() {
+        const result = origPush.apply(this, arguments);
+        onNav();
+        return result;
+      };
+      const origReplace = history.replaceState;
+      history.replaceState = function() {
+        const result = origReplace.apply(this, arguments);
+        onNav();
+        return result;
+      };
+    } catch {
+    }
+    window.addEventListener("popstate", onNav);
+    scheduleTrack(1200);
+  }
+  function deleteRecentEntry(url) {
+    const target = normalizeUrl(url);
+    recentCache = recentCache.filter((r) => normalizeUrl(r.url || "") !== target);
+    persistRecentCache();
+    renderRecentIfVisible();
+  }
+  function formatRecentRelative(ts) {
+    const then = new Date(ts).getTime();
+    if (isNaN(then)) return "";
+    const min = Math.floor((Date.now() - then) / 60000);
+    if (min < 1) return "Adesso";
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}g`;
+    return new Date(ts).toLocaleDateString();
+  }
+  function bucketRecentByAge(now) {
+    const startOfDay = new Date(now != null ? now : Date.now());
+    startOfDay.setHours(0, 0, 0, 0);
+    const todayMs = startOfDay.getTime();
+    const weekMs = todayMs - 7 * 86400000;
+    const buckets = { today: [], week: [], older: [] };
+    recentCache.forEach((r) => {
+      const ts = new Date(r.lastVisitedAt).getTime();
+      if (isNaN(ts)) {
+        buckets.older.push(r);
+        return;
+      }
+      if (ts >= todayMs) buckets.today.push(r);
+      else if (ts >= weekMs) buckets.week.push(r);
+      else buckets.older.push(r);
+    });
+    return buckets;
+  }
+  function showRecentFolderPicker(chat) {
+    const theme = currentTheme;
+    const overlay = document.createElement("div");
+    Object.assign(overlay.style, {
+      position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
+      background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)",
+      zIndex: "2147483647", display: "flex", alignItems: "center", justifyContent: "center"
+    });
+    const modal = document.createElement("div");
+    Object.assign(modal.style, {
+      background: theme.bg, border: `1px solid ${theme.glassBorder}`, borderRadius: "16px",
+      padding: "24px", width: "90%", maxWidth: "400px", color: "white"
+    });
+    const targets = getValidMoveTargets(folders, -1);
+    const optionsHtml = targets.map((t2) => `<option value="${t2.id}">${escapeHtml(t2.name)}</option>`).join("");
+    modal.innerHTML = `
+    <h3 style="margin:0 0 14px;font-size:15px;">Aggiungi chat a una cartella</h3>
+    <p style="margin:0 0 12px;font-size:12px;color:${theme.textSecondary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(collapseText(chat.name || "Chat"))}</p>
+    <div style="margin-bottom:18px;">
+      <select id="recent-target-select" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid ${theme.border};background:${theme.glassBg};color:#fff;font-size:13px;outline:none;">
+        ${optionsHtml || '<option value="">Nessuna cartella</option>'}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="recent-target-cancel" style="background:transparent;border:1px solid ${theme.border};color:${theme.textSecondary};padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;">Annulla</button>
+      <button id="recent-target-save" style="background:${theme.primary};border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Aggiungi</button>
+    </div>
+  `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    modal.querySelector("#recent-target-cancel").addEventListener("click", () => overlay.remove());
+    modal.querySelector("#recent-target-save").addEventListener("click", () => {
+      const targetId = Number(modal.querySelector("#recent-target-select").value);
+      const target = findFolderById(folders, targetId);
+      overlay.remove();
+      if (!target) {
+        showToast("Crea prima una cartella dalla tab Cartelle", "info");
+        return;
+      }
+      addChatToFolder(target, { name: chat.name, url: chat.url, platform: chat.platform });
+    });
+  }
+  function renderRecentList(container) {
+    const theme = currentTheme;
+    const list = container.querySelector("#recent-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (recentCache.length === 0) {
+      list.innerHTML = `
+      <div style="text-align:center;padding:40px 16px;">
+        <span style="color:${theme.appAccent};display:flex;justify-content:center;margin-bottom:12px;opacity:0.5;">${lucide_icons_default.get("clock", 28)}</span>
+        <p style="color:${theme.textSecondary};font-size:12px;line-height:1.6;margin:0;">Nessuna chat visitata di recente. Le chat che apri compaiono qui.</p>
+      </div>`;
+      return;
+    }
+    const buckets = bucketRecentByAge();
+    [["today", "Oggi"], ["week", "Ultimi 7 giorni"], ["older", "Più vecchie"]].forEach(([key, label]) => {
+      const items = buckets[key];
+      if (!items.length) return;
+      const header = document.createElement("p");
+      header.style.cssText = `color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:14px 2px 8px;`;
+      header.textContent = label;
+      list.appendChild(header);
+      items.forEach((r) => {
+        const item = document.createElement("div");
+        Object.assign(item.style, {
+          padding: "10px 12px", marginBottom: "6px", background: theme.surface,
+          border: `1px solid ${theme.border}`, borderRadius: "10px",
+          display: "flex", alignItems: "center", gap: "10px", transition: "all 0.18s ease"
+        });
+        item.addEventListener("mouseenter", () => {
+          item.style.background = theme.surfaceHover;
+          item.style.borderColor = `${theme.appAccent}44`;
+        });
+        item.addEventListener("mouseleave", () => {
+          item.style.background = theme.surface;
+          item.style.borderColor = theme.border;
+        });
+        const title = document.createElement("div");
+        title.textContent = collapseText(r.name || "Chat");
+        Object.assign(title.style, {
+          flex: "1", minWidth: "0", cursor: "pointer", color: theme.textPrimary,
+          fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+        });
+        title.addEventListener("click", () => openChat(r.url));
+        const meta = document.createElement("div");
+        meta.style.cssText = `flex-shrink:0;color:${theme.textSecondary};font-size:10px;white-space:nowrap;`;
+        meta.textContent = `${r.platform || ""} · ${formatRecentRelative(r.lastVisitedAt)}`;
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex;gap:2px;flex-shrink:0;";
+        const mkBtn = (cls, icon, titleText) => {
+          const b = document.createElement("button");
+          b.className = cls;
+          b.title = titleText;
+          b.innerHTML = lucide_icons_default.get(icon, 12);
+          b.style.cssText = "background:transparent;border:none;cursor:pointer;padding:4px 5px;border-radius:6px;display:flex;align-items:center;color:" + theme.textSecondary + ";transition:all 0.15s ease;";
+          return b;
+        };
+        const folderBtn = mkBtn("recent-folder", "folder-plus", "Aggiungi a una cartella");
+        folderBtn.addEventListener("click", () => showRecentFolderPicker(r));
+        const bookmarkBtn = mkBtn("recent-bookmark", "bookmark", "Aggiungi ai bookmark");
+        bookmarkBtn.addEventListener("click", () => {
+          addBookmark(r.name || "Chat", r.url, r.platform);
+        });
+        const removeBtn = mkBtn("recent-remove", "x", "Rimuovi dai recenti");
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteRecentEntry(r.url);
+        });
+        actions.appendChild(folderBtn);
+        actions.appendChild(bookmarkBtn);
+        actions.appendChild(removeBtn);
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.appendChild(actions);
+        list.appendChild(item);
+      });
+    });
   }
   function addChatToFolderFromContextMenu(folder) {
     showAddChatPickerDialog(folder);
@@ -24149,6 +24400,18 @@ ${suffix}`;
     </div>
   `;
     renderBookmarksList(container);
+  }
+  function renderRecentTab(container) {
+    const theme = currentTheme;
+    container.innerHTML = `
+    <div style="padding:0 0 8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <p style="color:${theme.textSecondary};font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin:0;">Recenti</p>
+      </div>
+      <div id="recent-list"></div>
+    </div>
+  `;
+    renderRecentList(container);
   }
   function renderBookmarksList(container) {
     const theme = currentTheme;
@@ -25947,6 +26210,10 @@ ${suffix}`;
       }
       if (changes.infolders_prompts) {
         setPromptsCache(changes.infolders_prompts.newValue || [], false);
+      }
+      if (changes.infolders_recent) {
+        recentCache = Array.isArray(changes.infolders_recent.newValue) ? changes.infolders_recent.newValue : [];
+        renderRecentIfVisible();
       }
       if (changes.infolders_premium) {
         infoldersPremium = changes.infolders_premium.newValue || null;
